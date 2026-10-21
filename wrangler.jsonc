@@ -1,0 +1,37 @@
+// Cloudflare Workers configuration for ProcureBest.
+// The only lines you need to change are marked "← CHANGE". See docs/SETUP-GUIDE-BN.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "procurebest",
+  "main": "src/index.js",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // CSS, JavaScript and images are served straight from the "public" folder.
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+
+  // The database (questions, posts, orders, emails…). Create it in the Cloudflare
+  // dashboard (Storage & Databases → D1) and paste its ID below.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "procurebest",
+      "database_id": "PASTE-YOUR-D1-DATABASE-ID-HERE"   // ← CHANGE
+    }
+  ],
+
+  // File storage for books and templates (free, no card needed). Create it in
+  // Storage & Databases → KV and paste its ID below. If you skip this, files are
+  // kept in the database and limited to 5 MB each.
+  "kv_namespaces": [
+    {
+      "binding": "FILES_KV",
+      "id": "PASTE-YOUR-KV-NAMESPACE-ID-HERE"   // ← CHANGE
+    }
+  ],
+
+  "observability": { "enabled": true }
+
+  // Optional, only if your Cloudflare account has a payment card: R2 storage.
+  // "r2_buckets": [{ "binding": "FILES", "bucket_name": "procurebest-files" }]
+}

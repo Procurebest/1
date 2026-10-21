@@ -1,0 +1,16 @@
+{
+  "name": "procurebest",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ProcureBest.com — procurement calculators, exams, library and admin panel on Cloudflare Workers",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "local": "node --experimental-sqlite dev/server.mjs",
+    "test": "node --experimental-sqlite dev/test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
