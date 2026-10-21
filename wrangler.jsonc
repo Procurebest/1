@@ -16,7 +16,7 @@
     {
       "binding": "DB",
       "database_name": "procurebest",
-      "database_id": "PASTE-YOUR-D1-DATABASE-ID-HERE"   // ← CHANGE
+      "database_id": "f011d91a-9dc9-4eb9-91ea-d630f06106e2"   // ← CHANGE
     }
   ],
 
@@ -26,7 +26,7 @@
   "kv_namespaces": [
     {
       "binding": "FILES_KV",
-      "id": "PASTE-YOUR-KV-NAMESPACE-ID-HERE"   // ← CHANGE
+      "id": "cf31f6f9ba514578828d09a90bc43e82"   // ← CHANGE
     }
   ],
 
