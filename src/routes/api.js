@@ -58,7 +58,7 @@ export function registerApi(r) {
     if (!b.consent) return c.json({ ok: false, error: c.t("gate.consent_required") }, 400);
     const s = await c.settings();
     const ipKey = await sha256("ip:" + clientIp(c.req));
-    if (!(await rateLimit(c.env, "verify-ip:" + ipKey, 12, 3600)) || !(await rateLimit(c.env, "verify-em:" + email, 4, 3600))) {
+    if (!(await rateLimit(c.env, "verify-ip:" + ipKey, 12, 3600)) || !(await rateLimit(c.env, "verify-em:" + email, 6, 3600))) {
       return c.json({ ok: false, error: c.t("gate.rate") }, 429);
     }
     const next = typeof b.next === "string" && b.next.startsWith("/") && !b.next.startsWith("//") ? b.next.slice(0, 300) : c.p("/");
@@ -68,18 +68,38 @@ export function registerApi(r) {
       return c.json({ ok: true, status: "collected", email, message: c.t("gate.collected") });
     }
     const token = randomToken(24);
-    await run(c.env, "INSERT INTO verifications(token_hash,email,purpose,next,lang,subscribe,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?)",
-      await sha256(token), email, "gate", next, c.lang, b.subscribe ? 1 : 0, nowIso(), isoPlus(60 * MIN));
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0");
+    await run(c.env, "INSERT INTO verifications(token_hash,email,purpose,next,lang,subscribe,created_at,expires_at,code_hash) VALUES (?,?,?,?,?,?,?,?,?)",
+      await sha256(token), email, "gate", next, c.lang, b.subscribe ? 1 : 0, nowIso(), isoPlus(60 * MIN), await sha256(`code:${email}:${code}`));
     const link = `${c.siteUrl}/${c.lang}/verify?t=${token}`;
-    const mail = emailLayout({ title: c.t("verify.title"), paragraphs: [c.t("verify.mail_lead"), c.t("verify.mail_ignore")],
+    const mail = emailLayout({ title: c.t("verify.title"), paragraphs: [c.t("verify.mail_code", { code }), c.t("verify.mail_lead"), c.t("verify.mail_ignore")],
       button: { label: c.t("verify.button"), url: link }, footer: "ProcureBest", siteUrl: c.siteUrl });
-    const sent = await sendMail(c.env, s, { to: email, subject: c.t("verify.subject"), ...mail });
+    const sent = await sendMail(c.env, s, { to: email, subject: c.t("verify.subject_code", { code }), ...mail });
     if (!sent.ok) {
       console.error("verification email failed", sent.error);
+      await logProblem(c, email, "email", sent.error);
       return c.json({ ok: false, error: c.t("gate.mail_failed") }, 502);
     }
     await recordEmail(c.env, email, { source: "gate", lang: c.lang, verified: false });
     return c.json({ ok: true, status: "sent", message: c.t("gate.sent", { email }) });
+  });
+
+  // Step 2 (alternative to the link): the 6-digit code from the email, typed on any device.
+  r.post("/api/verify/code", async (c) => {
+    const b = await c.body();
+    c.setLang(b.lang);
+    const email = normEmail(b.email);
+    const code = String(b.code || "").replace(/\D/g, "");
+    if (!isEmail(email) || code.length !== 6) return c.json({ ok: false, error: c.t("gate.code_bad") }, 400);
+    if (!(await rateLimit(c.env, "code:" + email, 8, 900))) return c.json({ ok: false, error: c.t("gate.rate") }, 429);
+    const row = await one(c.env, `SELECT * FROM verifications WHERE email=? AND code_hash=? AND used_at IS NULL AND expires_at > ? ORDER BY id DESC LIMIT 1`,
+      email, await sha256(`code:${email}:${code}`), nowIso());
+    if (!row) return c.json({ ok: false, error: c.t("gate.code_bad") }, 400);
+    await run(c.env, "UPDATE verifications SET used_at=? WHERE id=?", nowIso(), row.id);
+    await recordEmail(c.env, email, { source: row.purpose, lang: c.lang, verified: true, subscribe: !!row.subscribe });
+    await run(c.env, "UPDATE emails SET verified_at=COALESCE(verified_at, ?) WHERE email=?", nowIso(), email);
+    await c.setVisitor(email, true);
+    return c.json({ ok: true, email });
   });
 
   // Calculator report downloads are generated in the browser; this records who asked.
@@ -124,37 +144,49 @@ export function registerApi(r) {
   r.post("/api/orders", async (c) => {
     const b = await c.body();
     c.setLang(b.lang);
+    try { return await placeOrder(c, b); }
+    catch (e) {
+      console.error("order failed", e);
+      await logProblem(c, (await c.visitor())?.email, "order", `${b.item_type}:${b.item_ref} → server error: ${e && e.message}`);
+      return c.json({ ok: false, error: c.t("error.generic") }, 500);
+    }
+  });
+
+  async function placeOrder(c, b) {
     const v = await visitorReady(c);
-    if (!v) return needEmail(c);
+    if (!v) {
+      await logProblem(c, (await c.visitor())?.email, "order", `${b.item_type}:${b.item_ref} → waiting for email confirmation`);
+      return needEmail(c);
+    }
     const s = await c.settings();
     const methods = paymentMethods(s);
     const method = methods.find((m) => m.code === b.method);
-    if (!method) return c.json({ ok: false, error: c.t("order.no_methods"), field: "method" }, 400);
+    if (!method) return orderFail(c, b, c.t("order.no_methods"), 400, "method");
     const trx = clip(b.trx, 30).replace(/\s+/g, "");
-    if (!TRX_RE.test(trx)) return c.json({ ok: false, error: c.t("order.err_trx"), field: "trx" }, 400);
+    if (!TRX_RE.test(trx)) return orderFail(c, b, c.t("order.err_trx"), 400, "trx");
     const sender = clip(b.sender, 20).replace(/[\s-]/g, "");
-    if (!PHONE_RE.test(sender)) return c.json({ ok: false, error: c.t("order.err_sender"), field: "sender" }, 400);
+    if (!PHONE_RE.test(sender)) return orderFail(c, b, c.t("order.err_sender"), 400, "sender");
     const name = clip(b.name, 100);
-    if (name.length < 2) return c.json({ ok: false, error: c.t("form.required"), field: "name" }, 400);
+    if (name.length < 2) return orderFail(c, b, c.t("form.required"), 400, "name");
     const phone = clip(b.phone, 20);
     let itemTitle, amount;
     if (b.item_type === "file") {
       const item = await one(c.env, "SELECT * FROM items WHERE slug=? AND status='published'", b.item_ref);
-      if (!item || item.price <= 0) return c.json({ ok: false, error: c.t("error.not_found") }, 404);
-      if (await ownsFile(c.env, v.email, item.slug)) return c.json({ ok: false, error: c.t("order.err_owned") }, 409);
+      if (!item || item.price <= 0) return orderFail(c, b, c.t("error.not_found"), 404);
+      if (await ownsFile(c.env, v.email, item.slug)) return orderFail(c, b, c.t("order.err_owned"), 409);
       itemTitle = item.title_en || item.title_bn; amount = item.price;
     } else if (b.item_type === "exam") {
       const lv = await level(c.env, b.item_ref);
-      if (!lv || lv.price <= 0) return c.json({ ok: false, error: c.t("error.not_found") }, 404);
+      if (!lv || lv.price <= 0) return orderFail(c, b, c.t("error.not_found"), 404);
       itemTitle = `${lv.title_en} exam`; amount = lv.price;
-    } else return c.json({ ok: false, error: c.t("error.bad_request") }, 400);
-    if (await pendingOrder(c.env, v.email, b.item_type, b.item_ref)) return c.json({ ok: false, error: c.t("order.err_pending") }, 409);
-    if (!(await rateLimit(c.env, "order:" + v.email, 10, 86400))) return c.json({ ok: false, error: c.t("error.rate_limited") }, 429);
+    } else return orderFail(c, b, c.t("error.bad_request"), 400);
+    if (await pendingOrder(c.env, v.email, b.item_type, b.item_ref)) return orderFail(c, b, c.t("order.err_pending"), 409);
+    if (!(await rateLimit(c.env, "order:" + v.email, 10, 86400))) return orderFail(c, b, c.t("error.rate_limited"), 429);
     let ref;
     try {
       ref = await createOrder(c.env, { email: v.email, name, phone, itemType: b.item_type, itemRef: b.item_ref, itemTitle, amount, method: method.code, sender, trx, lang: c.lang });
     } catch (e) {
-      if (/UNIQUE/i.test(String(e.message))) return c.json({ ok: false, error: c.t("order.err_dup"), field: "trx" }, 409);
+      if (/UNIQUE/i.test(String(e.message))) return orderFail(c, b, c.t("order.err_dup"), 409, "trx");
       throw e;
     }
     await recordEmail(c.env, v.email, { source: "order", lang: c.lang, verified: v.verified, name });
@@ -164,7 +196,7 @@ export function registerApi(r) {
       c.exec?.waitUntil?.(sendMail(c.env, s, { to: s.notify_email.trim(), subject: `ProcureBest: new order ${ref} (${amount} BDT)`, ...mail }));
     }
     return c.json({ ok: true, redirect: c.p(`/buy/done/${ref}`) });
-  });
+  }
 
   // Exams
   r.post("/api/exams/:code/start", async (c) => {
@@ -233,6 +265,17 @@ export function registerApi(r) {
     }
     return c.json({ ok: true, message: c.t("contact.sent") });
   });
+}
+
+// Failed order attempts are logged so the admin can see why an order did not arrive.
+async function logProblem(c, email, what, detail) {
+  try { await run(c.env, "INSERT INTO events(kind,email,ref,detail,created_at) VALUES ('problem',?,?,?,?)", email || null, what, String(detail || "").slice(0, 300), nowIso()); }
+  catch (e) { console.error(e); }
+}
+async function orderFail(c, b, message, status, field) {
+  const v = await c.visitor();
+  await logProblem(c, v && v.email, "order", `${b.item_type || "?"}:${b.item_ref || "?"} trx=${String(b.trx || "").slice(0, 30)} → ${message}`);
+  return c.json({ ok: false, error: message, ...(field ? { field } : {}) }, status);
 }
 
 async function env_logDownload(c, email, item) {

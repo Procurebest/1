@@ -605,6 +605,12 @@ async function ordersList(c) {
   const total = Number(await scalar(c.env, `SELECT COUNT(*) FROM orders ${w}`, ...args));
   const rows = await all(c.env, `SELECT * FROM orders ${w} ORDER BY id DESC LIMIT ${PAGE} OFFSET ${(page - 1) * PAGE}`, ...args);
   const csrf = await csrfInput(c);
+  const problems = await all(c.env, "SELECT * FROM events WHERE kind='problem' AND created_at >= ? ORDER BY id DESC LIMIT 15", isoPlus(-7 * DAY));
+  const problemPanel = problems.length ? html`<details class="panel" style="margin-top:20px" ${status === "pending" && !rows.length ? raw("open") : ""}>
+    <summary style="cursor:pointer"><strong>${c.L("Orders and emails that did not go through (last 7 days)", "যেসব অর্ডার ও ইমেইল জমা পড়েনি (গত ৭ দিন)")}</strong> <span class="tag warn">${c.d(problems.length)}</span></summary>
+    <p class="small muted" style="margin-top:10px">${c.L("These are attempts the site refused or could not finish, with the reason. They are not orders — nothing needs approving.", "সাইট যেসব চেষ্টা গ্রহণ করেনি বা শেষ করতে পারেনি, কারণসহ। এগুলো অর্ডার নয় — অনুমোদনের কিছু নেই।")}</p>
+    <div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>${c.L("When", "কখন")}</th><th>${c.L("Email", "ইমেইল")}</th><th>${c.L("What", "কী")}</th><th>${c.L("Reason", "কারণ")}</th></tr></thead><tbody>
+    ${problems.map((p) => html`<tr><td class="small">${c.date(p.created_at, true)}</td><td class="small">${p.email || "—"}</td><td class="small">${p.ref}</td><td class="small">${p.detail}</td></tr>`)}</tbody></table></div></details>` : "";
   const body = html`<div class="chips" style="margin-bottom:16px">${["pending", "approved", "rejected", "all"].map((s) => html`<a class="chip ${status === s ? "on" : ""}" href="/admin/orders?status=${s}">${s === "all" ? c.L("All", "সব") : statusLabel(c, s)}</a>`)}</div>
   ${status === "pending" ? html`<div class="alert alert-info" style="margin-bottom:16px">${icon("info", 18)}<div>${c.L("Open your bKash / Nagad app, find a payment with the same Transaction ID, sender number and amount, then approve. Approval gives the buyer access and sends an email.", "আপনার bKash / Nagad অ্যাপ খুলে একই Transaction ID, প্রেরকের নম্বর ও পরিমাণের পেমেন্ট খুঁজুন, তারপর অনুমোদন দিন। অনুমোদন দিলে ক্রেতা অ্যাক্সেস পাবেন এবং ইমেইল যাবে।")}</div></div>` : ""}
   <div class="table-wrap"><table><thead><tr><th>${c.L("Order", "অর্ডার")}</th><th>${c.L("Buyer", "ক্রেতা")}</th><th>${c.L("Item", "আইটেম")}</th><th class="num">${c.L("Amount", "পরিমাণ")}</th><th>${c.L("Payment", "পেমেন্ট")}</th><th>${c.L("Status", "অবস্থা")}</th><th style="min-width:230px"></th></tr></thead><tbody>
@@ -615,7 +621,7 @@ async function ordersList(c) {
     <td>${statusTag(c, o.status)}${o.admin_note ? html`<div class="tiny muted">${o.admin_note}</div>` : ""}</td>
     <td>${o.status === "pending" ? html`<form method="post" action="/admin/orders/${o.id}/approve" class="inline-form" style="margin-bottom:6px">${csrf}<button class="btn btn-primary btn-sm" type="submit">${icon("check", 14)} ${c.L("Approve", "অনুমোদন")}</button></form>
       <form method="post" action="/admin/orders/${o.id}/reject" class="inline-form">${csrf}<input name="note" placeholder="${c.L("Reason (sent to buyer)", "কারণ (ক্রেতাকে পাঠানো হবে)")}" style="min-height:34px;padding:6px 10px;font-size:13px;width:150px"><button class="btn btn-ghost btn-sm" type="submit">${c.L("Reject", "বাতিল")}</button></form>` : ""}</td></tr>`)
-    : html`<tr><td colspan="7" class="muted">${c.L("No orders here.", "এখানে কোনো অর্ডার নেই।")}</td></tr>`}</tbody></table></div>${pager(c, page, total, `/admin/orders?status=${status}`)}`;
+    : html`<tr><td colspan="7" class="muted">${c.L("No orders here.", "এখানে কোনো অর্ডার নেই।")}</td></tr>`}</tbody></table></div>${pager(c, page, total, `/admin/orders?status=${status}`)}${problemPanel}`;
   return adminLayout(c, { title: c.L("Orders", "অর্ডার"), body, active: "orders" });
 }
 async function orderDecide(c) {

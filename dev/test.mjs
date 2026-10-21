@@ -428,6 +428,27 @@ console.log("\nEmail verification mode (email service configured) + D1 file stor
     const reuse = await visitor.req("POST", path, { form: {} });
     assert.match(reuse.text, /আগেই ব্যবহার/);
   });
+  await test("6-digit code confirms the email on another device", async () => {
+    const phone = client(env);
+    const r = await phone.req("POST", "/api/verify/start", { json: { email: "rafiq@example.com", consent: true, lang: "en" } });
+    assert.equal(r.data.status, "sent");
+    const mail = outbox.filter((m) => m.to === "rafiq@example.com").pop();
+    const code = mail.subject.match(/\d{6}/)[0];
+    assert.match(mail.text, new RegExp(code));
+    const wrong = await phone.req("POST", "/api/verify/code", { json: { email: "rafiq@example.com", code: code === "000000" ? "111111" : "000000" } });
+    assert.equal(wrong.status, 400);
+    const ok = await phone.req("POST", "/api/verify/code", { json: { email: "rafiq@example.com", code } });
+    assert.equal(ok.status, 200);
+    assert.equal((await phone.req("GET", "/api/me")).data.ok, true);
+    const again = await phone.req("POST", "/api/verify/code", { json: { email: "rafiq@example.com", code } });
+    assert.equal(again.status, 400, "a code works once");
+  });
+  await test("refused orders are listed for the admin with the reason", async () => {
+    const stranger = client(env);
+    await stranger.req("POST", "/api/orders", { json: { item_type: "file", item_ref: "procurement-kpi-dashboard", method: "bkash", sender: "01912345678", trx: "ABC12345", name: "X", lang: "en" } });
+    const list = await admin.req("GET", "/admin/orders");
+    assert.match(list.text, /waiting for email confirmation/);
+  });
   await test("D1 file storage serves a template", async () => {
     const r = await visitor.req("POST", "/api/library/tco-comparison-template/link", { json: { lang: "en" } });
     const res = await visitor.req("GET", r.data.url, { raw: true });

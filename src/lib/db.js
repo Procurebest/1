@@ -3,7 +3,7 @@
 // migrations by hand. Every statement is idempotent (IF NOT EXISTS / INSERT OR IGNORE).
 import { randomToken, nowIso } from "./util.js";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
@@ -114,6 +114,9 @@ export async function ensureSchema(env) {
       } catch { /* meta table missing: first run */ }
       if (Number(version) !== SCHEMA_VERSION) {
         await env.DB.batch(SCHEMA.map((s) => env.DB.prepare(s)));
+        // v2: 6-digit confirmation codes (for people who open the email on another device)
+        const cols = (await env.DB.prepare("PRAGMA table_info(verifications)").all()).results || [];
+        if (!cols.some((c) => c.name === "code_hash")) await env.DB.prepare("ALTER TABLE verifications ADD COLUMN code_hash TEXT").run();
         const now = nowIso();
         await env.DB.batch([
           ...LEVELS.map((l) => env.DB.prepare(

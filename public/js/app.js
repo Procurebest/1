@@ -29,6 +29,7 @@
   // ------------------------------------------------------------ email gate
   const modal = document.querySelector('[data-modal="gate"]');
   let pending = null; // {resolve}
+  let pendingEmail = "";
   let pollTimer = null;
 
   function closeGate(result) {
@@ -46,7 +47,10 @@
       const form = modal.querySelector("[data-gate-form]");
       const msg = modal.querySelector("[data-gate-msg]");
       msg.hidden = true;
+      const cf = modal.querySelector("[data-code-form]");
+      if (cf) { cf.hidden = true; cf.reset(); cf.querySelector("[data-code-msg]").hidden = true; }
       form.querySelector("[data-gate-submit]").hidden = false;
+      form.querySelector(".form-actions").hidden = false;
       form.querySelector("[data-gate-submit]").disabled = false;
       modal.hidden = false;
       modal.classList.add("open");
@@ -91,16 +95,33 @@
       if (body.ok && body.status === "collected") { cfg.email = body.email; setTimeout(() => closeGate(true), 600); }
       if (body.ok && body.status === "sent") {
         btn.hidden = true;
-        const w = document.createElement("p");
-        w.className = "small muted"; w.style.marginTop = "10px";
-        w.innerHTML = '<span class="spin" style="display:inline-block;vertical-align:-2px;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%"></span> ' + T("Waiting for confirmation…", "নিশ্চিতকরণের অপেক্ষায়…");
-        msg.appendChild(w);
+        form.querySelector(".form-actions").hidden = true;
+        pendingEmail = (fd.get("email") || "").trim();
+        const cf = modal.querySelector("[data-code-form]");
+        cf.hidden = false;
+        setTimeout(() => cf.querySelector("input").focus(), 30);
         startPolling();
       }
     });
   }
 
   // Resolves true once this browser has a usable email (already confirmed, or just confirmed).
+  if (modal) {
+    const cf = modal.querySelector("[data-code-form]");
+    cf.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const code = (cf.querySelector("input").value || "").replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d)).replace(/\D/g, "");
+      const err = cf.querySelector("[data-code-msg]");
+      const b = cf.querySelector('button[type="submit"]');
+      b.disabled = true;
+      const r = await post("/api/verify/code", { email: pendingEmail, code, lang }).catch(() => ({ ok: false }));
+      b.disabled = false;
+      if (r.ok) { cfg.email = r.email; try { localStorage.setItem("pb_verified", String(Date.now())); } catch (x) { /* ignore */ } closeGate(true); return; }
+      err.hidden = false;
+      err.textContent = r.error || T("Something went wrong. Please try again.", "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+    });
+  }
+
   async function requireEmail() {
     const m = await me();
     if (m.ok) { cfg.email = m.email; return true; }
@@ -180,8 +201,11 @@
   document.querySelectorAll("form[data-json-form]").forEach((form) => {
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (form.hasAttribute("data-needs-email")) { const ok = await requireEmail(); if (!ok) return; }
       const msg = form.querySelector("[data-form-msg]");
+      if (form.hasAttribute("data-needs-email")) {
+        const ok = await requireEmail();
+        if (!ok) { if (msg) { msg.hidden = false; msg.className = "alert alert-warn"; msg.textContent = cfg.closedNote || T("Confirm your email first — then press the button again.", "আগে ইমেইল নিশ্চিত করুন — তারপর আবার বাটন চাপুন।"); } return; }
+      }
       const btn = form.querySelector('button[type="submit"]');
       const data = {};
       new FormData(form).forEach((v, k) => { data[k] = typeof v === "string" ? v.trim() : v; });
@@ -194,7 +218,13 @@
       btn.disabled = false;
       btn.innerHTML = label;
       if (body.ok && body.redirect) { window.location.href = body.redirect; return; }
-      if (body.need_email) { cfg.email = null; const ok = await openGate(); if (ok) form.requestSubmit(); return; }
+      if (body.need_email) {
+        cfg.email = null;
+        const ok = await openGate();
+        if (ok) form.requestSubmit();
+        else if (msg) { msg.hidden = false; msg.className = "alert alert-warn"; msg.textContent = cfg.closedNote || ""; }
+        return;
+      }
       if (msg) {
         msg.hidden = false;
         msg.className = "alert " + (body.ok ? "alert-ok" : "alert-err");

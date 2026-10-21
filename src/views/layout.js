@@ -37,7 +37,7 @@ export async function layout(c, { title, description, body, pageType = "page", n
     return html`<li><a href="${href}" ${on ? raw('aria-current="page"') : ""}>${c.t(key)}</a></li>`;
   };
   const wa = whatsapp(s, lang);
-  const gateCfg = { lang, email: v ? v.email : null, verified: v ? v.verified : false };
+  const gateCfg = { lang, email: v ? v.email : null, verified: v ? v.verified : false, closedNote: c.t("gate.closed_note") };
   return html`<html lang="${lang}">
 <head>
   <meta charset="utf-8">
@@ -173,6 +173,14 @@ export function gateModal(c, s) {
         <button type="button" class="btn btn-ghost" data-modal-close>${c.t("common.close")}</button>
       </div>
       <p class="tiny muted" style="margin-top:14px">${c.t("gate.privacy")} <a href="${c.p("/privacy")}">${c.t("footer.privacy")}</a></p>
+    </form>
+    <form data-code-form novalidate hidden style="margin-top:14px">
+      <div class="field full"><label for="gate-code">${c.t("gate.code_label")}</label>
+        <input id="gate-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="font-size:22px;letter-spacing:6px;text-align:center">
+        <span class="help">${c.t("gate.code_help")}</span></div>
+      <div class="alert alert-err" data-code-msg hidden style="margin-top:12px"></div>
+      <div class="form-actions" style="margin-top:14px"><button type="submit" class="btn btn-primary">${c.t("gate.code_button")}</button>
+        <button type="button" class="btn btn-ghost" data-modal-close>${c.t("common.close")}</button></div>
     </form>
   </div>
 </div>`;
