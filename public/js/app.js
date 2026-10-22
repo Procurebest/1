@@ -254,16 +254,37 @@
     });
   });
 
-  // Newsletter: confirm the email (with the subscribe box pre-ticked), then subscribe.
+  // Newsletter: one click. If this browser has no email yet, a small email box appears.
+  async function subscribe(b, email) {
+    const body = await post("/api/subscribe", email ? { email, lang } : { lang }).catch(() => ({ ok: false }));
+    if (body.ok) {
+      b.textContent = b.dataset.done || "✓"; b.disabled = true; b.hidden = false;
+      const f = b.parentElement.querySelector(".sub-inline"); if (f) f.remove();
+      cfg.email = body.email || cfg.email;
+      return true;
+    }
+    return body;
+  }
   document.addEventListener("click", async (e) => {
     const b = e.target.closest("[data-subscribe]");
     if (!b) return;
-    const box = modal && modal.querySelector('input[name="subscribe"]');
-    if (box) box.checked = true;
-    const ok = await requireEmail();
-    if (!ok) return;
-    const body = await post("/api/subscribe", { lang });
-    if (body.ok) { b.textContent = b.dataset.done || "✓"; b.disabled = true; }
+    const r = await subscribe(b);
+    if (r === true || !r.ask_email) return;
+    if (b.parentElement.querySelector(".sub-inline")) return;
+    const f = document.createElement("form");
+    f.className = "sub-inline"; f.noValidate = true;
+    f.innerHTML = `<input type="email" required autocomplete="email" placeholder="${T("Your email", "আপনার ইমেইল")}" aria-label="${T("Your email", "আপনার ইমেইল")}">
+      <button class="btn btn-primary" type="submit">${b.textContent.trim()}</button><span class="err-text" hidden></span>`;
+    b.hidden = true;
+    b.insertAdjacentElement("afterend", f);
+    const input = f.querySelector("input");
+    input.focus();
+    f.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const err = f.querySelector(".err-text");
+      const res = await subscribe(b, input.value.trim());
+      if (res !== true) { err.hidden = false; err.textContent = res.error || T("Enter a valid email address.", "একটি সঠিক ইমেইল ঠিকানা লিখুন।"); input.focus(); }
+    });
   });
 
   // "Use a different email"

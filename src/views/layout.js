@@ -6,7 +6,7 @@ import { calcList } from "../lib/calclist.js";
 import { tr } from "../../public/js/calc/defs.js";
 import { all } from "../lib/db.js";
 
-export const ASSET_V = "4";
+export const ASSET_V = "5";
 const asset = (p) => `${p}?v=${ASSET_V}`;
 export const LIB_TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
 

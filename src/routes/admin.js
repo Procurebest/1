@@ -702,7 +702,8 @@ async function ordersList(c) {
     <p class="small muted" style="margin-top:10px">${c.L("These are attempts the site refused or could not finish, with the reason. They are not orders — nothing needs approving.", "সাইট যেসব চেষ্টা গ্রহণ করেনি বা শেষ করতে পারেনি, কারণসহ। এগুলো অর্ডার নয় — অনুমোদনের কিছু নেই।")}</p>
     <div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>${c.L("When", "কখন")}</th><th>${c.L("Email", "ইমেইল")}</th><th>${c.L("What", "কী")}</th><th>${c.L("Reason", "কারণ")}</th></tr></thead><tbody>
     ${problems.map((p) => html`<tr><td class="small">${c.date(p.created_at, true)}</td><td class="small">${p.email || "—"}</td><td class="small">${p.ref}</td><td class="small">${p.detail}</td></tr>`)}</tbody></table></div></details>` : "";
-  const body = html`<div class="chips" style="margin-bottom:16px">${["pending", "approved", "rejected", "all"].map((s) => html`<a class="chip ${status === s ? "on" : ""}" href="/admin/orders?status=${s}">${s === "all" ? c.L("All", "সব") : statusLabel(c, s)}</a>`)}</div>
+  const body = html`<div class="row between" style="margin-bottom:16px"><div class="chips">${["pending", "approved", "rejected", "all"].map((s) => html`<a class="chip ${status === s ? "on" : ""}" href="/admin/orders?status=${s}">${s === "all" ? c.L("All", "সব") : statusLabel(c, s)}</a>`)}</div>
+    <a class="btn btn-primary btn-sm" href="/admin/orders/export?status=${status}">${icon("download", 15)} ${c.L("Download CSV (Excel)", "CSV ডাউনলোড (এক্সেল)")}</a></div>
   ${status === "pending" ? html`<div class="alert alert-info" style="margin-bottom:16px">${icon("info", 18)}<div>${c.L("Open your bKash / Nagad app, find a payment with the same Transaction ID, sender number and amount, then approve. Approval gives the buyer access and sends an email.", "আপনার bKash / Nagad অ্যাপ খুলে একই Transaction ID, প্রেরকের নম্বর ও পরিমাণের পেমেন্ট খুঁজুন, তারপর অনুমোদন দিন। অনুমোদন দিলে ক্রেতা অ্যাক্সেস পাবেন এবং ইমেইল যাবে।")}</div></div>` : ""}
   <div class="table-wrap"><table><thead><tr><th>${c.L("Order", "অর্ডার")}</th><th>${c.L("Buyer", "ক্রেতা")}</th><th>${c.L("Item", "আইটেম")}</th><th class="num">${c.L("Amount", "পরিমাণ")}</th><th>${c.L("Payment", "পেমেন্ট")}</th><th>${c.L("Status", "অবস্থা")}</th><th style="min-width:230px"></th></tr></thead><tbody>
   ${rows.length ? rows.map((o) => html`<tr><td class="small"><span class="mono">${o.ref}</span><div class="tiny muted">${c.date(o.created_at, true)}</div></td>
@@ -715,6 +716,22 @@ async function ordersList(c) {
     : html`<tr><td colspan="7" class="muted">${c.L("No orders here.", "এখানে কোনো অর্ডার নেই।")}</td></tr>`}</tbody></table></div>${pager(c, page, total, `/admin/orders?status=${status}`)}${problemPanel}`;
   return adminLayout(c, { title: c.L("Orders", "অর্ডার"), body, active: "orders" });
 }
+// CSV backups (open in Excel). The file starts with a BOM so Bengali text shows correctly.
+const csvResponse = (rows, name) => new Response(toCsv(rows), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${name}-${nowIso().slice(0, 10)}.csv"` } });
+async function ordersExport(c) {
+  const status = ["pending", "approved", "rejected"].includes(c.url.searchParams.get("status")) ? c.url.searchParams.get("status") : "";
+  const rows = await all(c.env, `SELECT * FROM orders ${status ? "WHERE status=?" : ""} ORDER BY id`, ...(status ? [status] : []));
+  return csvResponse([["ref", "created_at", "status", "decided_at", "name", "email", "phone", "item_type", "item_ref", "item_title", "amount_bdt", "method", "sender_number", "trx_id", "admin_note", "language"],
+    ...rows.map((o) => [o.ref, o.created_at, o.status, o.decided_at || "", o.name, o.email, o.phone, o.item_type, o.item_ref, o.item_title, o.amount, o.method, o.sender, o.trx_id, o.admin_note, o.lang])],
+    `procurebest-orders${status ? "-" + status : ""}`);
+}
+async function activityExport(c) {
+  const kind = ["download", "calc_export", "problem"].includes(c.url.searchParams.get("kind")) ? c.url.searchParams.get("kind") : "";
+  const rows = await all(c.env, `SELECT * FROM events ${kind ? "WHERE kind=?" : ""} ORDER BY id`, ...(kind ? [kind] : []));
+  return csvResponse([["created_at", "kind", "email", "item", "detail"], ...rows.map((e) => [e.created_at, e.kind, e.email || "", e.ref || "", e.detail || ""])],
+    `procurebest-activity${kind ? "-" + kind : ""}`);
+}
+
 async function orderDecide(c) {
   const f = await c.form();
   const s = await c.settings();
@@ -775,7 +792,8 @@ async function activityList(c) {
   const kindLabel = { download: c.L("Library download", "লাইব্রেরি ডাউনলোড"), calc_export: c.L("Calculator report", "ক্যালকুলেটর রিপোর্ট") };
   const body = html`<div class="grid grid-2" style="margin-bottom:20px"><div class="panel"><h3>${c.L("Most downloaded", "সবচেয়ে বেশি ডাউনলোড")}</h3>
     ${top.length ? html`<ul class="details-list">${top.map((t) => html`<li><span>${t.ref}</span><span>${c.num(t.n)}</span></li>`)}</ul>` : html`<p class="muted small">—</p>`}</div></div>
-  <div class="chips" style="margin-bottom:12px"><a class="chip ${kind ? "" : "on"}" href="/admin/activity">${c.L("All", "সব")}</a><a class="chip ${kind === "download" ? "on" : ""}" href="/admin/activity?kind=download">${kindLabel.download}</a><a class="chip ${kind === "calc_export" ? "on" : ""}" href="/admin/activity?kind=calc_export">${kindLabel.calc_export}</a></div>
+  <div class="row between" style="margin-bottom:12px"><div class="chips"><a class="chip ${kind ? "" : "on"}" href="/admin/activity">${c.L("All", "সব")}</a><a class="chip ${kind === "download" ? "on" : ""}" href="/admin/activity?kind=download">${kindLabel.download}</a><a class="chip ${kind === "calc_export" ? "on" : ""}" href="/admin/activity?kind=calc_export">${kindLabel.calc_export}</a></div>
+    <a class="btn btn-primary btn-sm" href="/admin/activity/export?kind=${kind}">${icon("download", 15)} ${c.L("Download CSV (Excel)", "CSV ডাউনলোড (এক্সেল)")}</a></div>
   <div class="table-wrap"><table><thead><tr><th>${c.L("When", "কখন")}</th><th>${c.L("What", "কী")}</th><th>${c.L("Email", "ইমেইল")}</th><th>${c.L("Item", "আইটেম")}</th></tr></thead><tbody>
   ${rows.map((e) => html`<tr><td class="small">${c.date(e.created_at, true)}</td><td class="small">${kindLabel[e.kind] || e.kind}</td><td class="small">${e.email || ""}</td><td class="small">${e.ref || ""} <span class="muted">${e.detail || ""}</span></td></tr>`)}</tbody></table></div>${pager(c, page, total, `/admin/activity?kind=${kind}`)}`;
   return adminLayout(c, { title: c.L("Downloads & activity", "ডাউনলোড ও কার্যক্রম"), body, active: "activity" });
@@ -1125,6 +1143,8 @@ export function registerAdmin(r) {
   r.post("/admin/questions/:id/delete", guard(async (c) => { await run(c.env, "DELETE FROM questions WHERE id=?", toInt(c.params.id)); return c.redirect(back("/admin/questions", "deleted")); }, { form: true }));
   r.post("/admin/questions/:id", guard(questionSave, { form: true }));
   r.get("/admin/orders", guard(ordersList));
+  r.get("/admin/orders/export", guard(ordersExport));
+  r.get("/admin/activity/export", guard(activityExport));
   r.post("/admin/orders/:id/:action(approve|reject)", guard(orderDecide, { form: true }));
   r.get("/admin/emails", guard(emailsList));
   r.get("/admin/emails/export", guard(emailsExport));

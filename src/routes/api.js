@@ -40,12 +40,20 @@ export function registerApi(r) {
 
   r.post("/api/forget-email", async (c) => { c.clearVisitor(); return c.json({ ok: true }); });
 
+  // Newsletter: one click, no confirmation code. Uses the email this browser already
+  // gave us, or the address typed in the small subscribe box.
   r.post("/api/subscribe", async (c) => {
-    const v = await visitorReady(c);
-    if (!v) return needEmail(c);
     const b = await c.body();
-    await recordEmail(c.env, v.email, { source: "newsletter", lang: b.lang === "bn" ? "bn" : "en", verified: v.verified, subscribe: true });
-    return c.json({ ok: true });
+    c.setLang(b.lang);
+    const v = await c.visitor();
+    const email = b.email ? normEmail(b.email) : v ? v.email : "";
+    if (!email) return c.json({ ok: false, ask_email: true }, 400);
+    if (!isEmail(email)) return c.json({ ok: false, error: c.t("form.invalid_email"), field: "email" }, 400);
+    if (!(await rateLimit(c.env, "sub-ip:" + (await sha256("ip:" + clientIp(c.req))), 20, 3600))) return c.json({ ok: false, error: c.t("error.rate_limited") }, 429);
+    const verified = Boolean(v && v.email === email && v.verified);
+    await recordEmail(c.env, email, { source: "newsletter", lang: c.lang, verified, subscribe: true });
+    if (!v) await c.setVisitor(email, false);
+    return c.json({ ok: true, email });
   });
 
   // Step 1 of the email gate: send a confirmation link (or, without an email
