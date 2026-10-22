@@ -15,7 +15,7 @@ router.get("/", async (c) => {
   const pref = (c.req.headers.get("Accept-Language") || "").toLowerCase().startsWith("bn") ? "bn" : s.default_lang;
   return c.redirect(`/${pref === "bn" ? "bn" : "en"}/`, 302);
 });
-router.get("/healthz", (c) => c.json({ ok: true }));
+router.get("/healthz", (c) => c.json({ ok: true, version: "2026-10-22-v4" }));
 registerPublic(router);
 registerVisitor(router);
 registerApi(router);
@@ -32,7 +32,7 @@ export default {
       if (!env.DB) return new Response("ProcureBest: the D1 database is not connected. See docs/SETUP-GUIDE-BN.md, step 4.", { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } });
       await ensureSchema(env);
       // Paths without a language prefix, e.g. /calculators → /en/calculators
-      if (!["en", "bn", "api", "admin", "dl", "media", "healthz", "sitemap.xml", "robots.txt", ""].includes(seg) && !seg.includes(".")) {
+      if (!["en", "bn", "api", "admin", "dl", "media", "preview", "healthz", "sitemap.xml", "robots.txt", ""].includes(seg) && !seg.includes(".")) {
         return c.finish(c.redirect(`/${(await c.settings()).default_lang}${path}${c.url.search}`, 302));
       }
       if (req.method === "POST" || req.method === "PUT") {
