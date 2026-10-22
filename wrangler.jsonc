@@ -2,7 +2,7 @@
 // The only lines you need to change are marked "← CHANGE". See docs/SETUP-GUIDE-BN.md.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "procurebest",
+  "name": "1",
   "main": "src/index.js",
   "compatibility_date": "2025-09-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -16,7 +16,7 @@
     {
       "binding": "DB",
       "database_name": "procurebest",
-      "database_id": "PASTE-YOUR-D1-DATABASE-ID-HERE"   // ← CHANGE
+      "database_id": "f011d91a-9dc9-4eb9-91ea-d630f06106e2"
     }
   ],
 
@@ -26,9 +26,12 @@
   "kv_namespaces": [
     {
       "binding": "FILES_KV",
-      "id": "PASTE-YOUR-KV-NAMESPACE-ID-HERE"   // ← CHANGE
+      "id": "cf31f6f9ba514578828d09a90bc43e82"
     }
   ],
+
+  // Keep variables set in the Cloudflare dashboard when deploying from GitHub.
+  "keep_vars": true,
 
   "observability": { "enabled": true }
 
