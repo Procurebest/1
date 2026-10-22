@@ -140,6 +140,24 @@ export function registerApi(r) {
     return fileResponse(c.env, file, "attachment", { "Cache-Control": "private, no-store" });
   });
 
+  // User review (shown after the admin approves it).
+  r.post("/api/reviews", async (c) => {
+    const b = await c.body();
+    c.setLang(b.lang);
+    const v = await visitorReady(c);
+    if (!v) return needEmail(c);
+    const name = clip(b.name, 80).replace(/\s+/g, " ");
+    const text = clip(b.body, 800).trim();
+    if (name.length < 2) return c.json({ ok: false, error: c.t("form.required"), field: "name" }, 400);
+    if (text.length < 20) return c.json({ ok: false, error: c.t("reviews.err_text"), field: "body" }, 400);
+    if (!(await rateLimit(c.env, "review:" + v.email, 3, 86400))) return c.json({ ok: false, error: c.t("error.rate_limited") }, 429);
+    const rating = Math.min(5, Math.max(1, toInt(b.rating, 5)));
+    await run(c.env, "INSERT INTO reviews(email,name,role,rating,body,lang,status,created_at) VALUES (?,?,?,?,?,?,'pending',?)",
+      v.email, name, clip(b.role, 100), rating, text, c.lang, nowIso());
+    await recordEmail(c.env, v.email, { source: "review", lang: c.lang, verified: v.verified, name });
+    return c.json({ ok: true, message: c.t("reviews.thanks") });
+  });
+
   // Manual bKash / Nagad order.
   r.post("/api/orders", async (c) => {
     const b = await c.body();
@@ -152,12 +170,15 @@ export function registerApi(r) {
     }
   });
 
+  // No email confirmation here: the buyer types their email with the TrxID. Access is only
+  // granted through the link in the "approved" email, which proves the address.
   async function placeOrder(c, b) {
-    const v = await visitorReady(c);
-    if (!v) {
-      await logProblem(c, (await c.visitor())?.email, "order", `${b.item_type}:${b.item_ref} → waiting for email confirmation`);
-      return needEmail(c);
-    }
+    const email = normEmail(b.email);
+    if (!isEmail(email)) return orderFail(c, b, c.t("form.invalid_email"), 400, "email");
+    if (!(await rateLimit(c.env, "orderip:" + (await sha256("ip:" + clientIp(c.req))), 20, 86400))) return orderFail(c, b, c.t("error.rate_limited"), 429);
+    const cur = await c.visitor();
+    if (!cur || cur.email !== email) await c.setVisitor(email, false);
+    const v = await c.visitor();
     const s = await c.settings();
     const methods = paymentMethods(s);
     const method = methods.find((m) => m.code === b.method);
@@ -175,6 +196,11 @@ export function registerApi(r) {
       if (!item || item.price <= 0) return orderFail(c, b, c.t("error.not_found"), 404);
       if (await ownsFile(c.env, v.email, item.slug)) return orderFail(c, b, c.t("order.err_owned"), 409);
       itemTitle = item.title_en || item.title_bn; amount = item.price;
+    } else if (b.item_type === "course") {
+      const k = await one(c.env, "SELECT * FROM courses WHERE slug=? AND status='published'", b.item_ref);
+      if (!k || k.price <= 0) return orderFail(c, b, c.t("error.not_found"), 404);
+      if (await one(c.env, "SELECT id FROM entitlements WHERE email=? AND item_type='course' AND item_ref=?", v.email, k.slug)) return orderFail(c, b, c.t("order.err_owned"), 409);
+      itemTitle = `${k.title_en || k.title_bn} (course)`; amount = k.price;
     } else if (b.item_type === "exam") {
       const lv = await level(c.env, b.item_ref);
       if (!lv || lv.price <= 0) return orderFail(c, b, c.t("error.not_found"), 404);
@@ -274,7 +300,7 @@ async function logProblem(c, email, what, detail) {
 }
 async function orderFail(c, b, message, status, field) {
   const v = await c.visitor();
-  await logProblem(c, v && v.email, "order", `${b.item_type || "?"}:${b.item_ref || "?"} trx=${String(b.trx || "").slice(0, 30)} → ${message}`);
+  await logProblem(c, (v && v.email) || (isEmail(b.email) ? normEmail(b.email) : null), "order", `${b.item_type || "?"}:${b.item_ref || "?"} trx=${String(b.trx || "").slice(0, 30)} → ${message}`);
   return c.json({ ok: false, error: message, ...(field ? { field } : {}) }, status);
 }
 

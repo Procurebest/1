@@ -1,9 +1,44 @@
 // About, Help, Privacy, Terms, Disclaimer and Contact pages (bilingual).
 import { html, raw } from "../lib/util.js";
+import { markdown } from "../lib/markdown.js";
 import { layout, pageHead } from "./layout.js";
 import { icon } from "./icons.js";
 
 const CONTENT = {
+  "certificate-policy": {
+    en: `<h2>Who receives a certificate</h2>
+<ul>
+<li>Certificates are issued automatically when a candidate reaches the pass mark in an exam that offers a certificate (the <strong>Professional</strong> and <strong>Pro</strong> exams).</li>
+<li>The <strong>Knowledge Check</strong> exam does not issue a certificate. Its result can be shared with a link.</li>
+<li>Scoring happens on our server. Questions are drawn at random from a larger bank and the order of options is shuffled for every candidate.</li>
+</ul>
+<h2>What the certificate shows</h2>
+<p>The candidate's name as entered before the exam, the exam level, the score, the issue date and a unique ID (for example <span class="mono">PB-2026-ABCD-1234</span>) with a QR code.</p>
+<h2>Verification</h2>
+<p>Anyone can check a certificate on the <a href="/en/certificates/verify">verification page</a> or by scanning its QR code. Verification shows the name, level, score, date and status — never the email address.</p>
+<h2>Name corrections</h2>
+<p>The name is printed exactly as typed. If you made a spelling mistake, contact us with the certificate ID within 30 days and we will correct it once.</p>
+<h2>Revocation</h2>
+<p>We may revoke a certificate if we find impersonation, sharing of exam questions, automated answering or other misconduct, or a payment that was reversed. A revoked certificate shows the status "Revoked" on the verification page.</p>
+<h2>What it is not</h2>
+<p>ProcureBest certificates are online assessment certificates issued by this platform. They are not a university degree, government recognition or professional accreditation such as CIPS, ASCM or ISM.</p>`,
+    bn: `<h2>কে সার্টিফিকেট পাবেন</h2>
+<ul>
+<li>যে পরীক্ষায় সার্টিফিকেট আছে (<strong>প্রফেশনাল</strong> ও <strong>প্রো</strong>), সেখানে পাস নম্বর পেলে সার্টিফিকেট স্বয়ংক্রিয়ভাবে ইস্যু হয়।</li>
+<li><strong>নলেজ চেক</strong> পরীক্ষায় সার্টিফিকেট নেই। এর ফলাফল লিংক দিয়ে শেয়ার করা যায়।</li>
+<li>নম্বর আমাদের সার্ভারে দেওয়া হয়। বড় প্রশ্নব্যাংক থেকে এলোমেলোভাবে প্রশ্ন আসে এবং প্রত্যেক পরীক্ষার্থীর জন্য বিকল্পের ক্রম বদলে যায়।</li>
+</ul>
+<h2>সার্টিফিকেটে যা থাকে</h2>
+<p>পরীক্ষার আগে লেখা পরীক্ষার্থীর নাম, পরীক্ষার স্তর, নম্বর, ইস্যুর তারিখ এবং একটি অনন্য আইডি (যেমন <span class="mono">PB-2026-ABCD-1234</span>) ও QR কোড।</p>
+<h2>যাচাই</h2>
+<p>যে কেউ <a href="/bn/certificates/verify">যাচাই পাতায়</a> অথবা QR কোড স্ক্যান করে সার্টিফিকেট যাচাই করতে পারেন। যাচাইয়ে নাম, স্তর, নম্বর, তারিখ ও অবস্থা দেখা যায় — ইমেইল ঠিকানা কখনো দেখানো হয় না।</p>
+<h2>নাম সংশোধন</h2>
+<p>নাম যেভাবে লেখা হয়েছে হুবহু সেভাবেই ছাপা হয়। বানানে ভুল হলে ৩০ দিনের মধ্যে সার্টিফিকেট আইডিসহ যোগাযোগ করুন — একবার সংশোধন করে দেওয়া হবে।</p>
+<h2>বাতিল</h2>
+<p>অন্যের হয়ে পরীক্ষা দেওয়া, প্রশ্ন ফাঁস, স্বয়ংক্রিয় উত্তর বা অন্য অসদাচরণ, কিংবা পেমেন্ট ফেরত নেওয়া হলে আমরা সার্টিফিকেট বাতিল করতে পারি। বাতিল সার্টিফিকেট যাচাই পাতায় "বাতিল" দেখাবে।</p>
+<h2>যা নয়</h2>
+<p>ProcureBest-এর সার্টিফিকেট এই প্ল্যাটফর্মের অনলাইন অ্যাসেসমেন্ট সার্টিফিকেট। এটি কোনো বিশ্ববিদ্যালয়ের ডিগ্রি, সরকারি স্বীকৃতি বা CIPS, ASCM, ISM-এর মতো পেশাদার অ্যাক্রেডিটেশন নয়।</p>`,
+  },
   about: {
     en: `<p>ProcureBest is built from the perspective of a working procurement and sourcing professional. The goal is simple: replace guesswork in buying decisions with transparent numbers.</p>
 <h2>What we offer</h2>
@@ -114,8 +149,8 @@ const FAQ = {
   en: [
     ["Do I need an account?", "No. There are no accounts or passwords. Calculators work without anything; downloads, exams and purchases only need your email, confirmed once in each browser."],
     ["Why do you ask me to confirm my email before downloading?", "It stops automated abuse and makes sure files, certificates and order updates reach an inbox you control. After you confirm once, this browser remembers it."],
-    ["How do I buy a paid book, file or the Expert exam?", "Open the item and press Buy. Send the amount with bKash or Nagad \"Send Money\" to the number shown, then enter the Transaction ID. We check every payment by hand and email you when it is approved."],
-    ["How many times can I take an exam?", "The free exams can be taken a few times a day (shown on the exam page). One payment for the Expert exam gives three attempts."],
+    ["How do I buy a paid book, file or the Pro exam?", "Open the item and press Buy. Send the amount with bKash or Nagad \"Send Money\" to the number shown, then enter the Transaction ID. We check every payment by hand and email you when it is approved."],
+    ["How many times can I take an exam?", "The free exams can be taken a few times a day (shown on the exam page). One payment for the Pro exam gives three attempts."],
     ["How are exams scored?", "Scoring happens on the server after you submit, or automatically when the timer ends. You see your score by topic. Correct answers are not shown, to protect the question bank."],
     ["Where do the duty rates and exchange rates come from?", "From you. ProcureBest does not publish official rates. Enter the rates for your HS code and the rate your bank will apply."],
     ["Is the certificate an accreditation?", "No. It is a ProcureBest online assessment certificate that anyone can verify online using its ID or QR code."],
@@ -124,8 +159,8 @@ const FAQ = {
   bn: [
     ["অ্যাকাউন্ট কি লাগবে?", "না। কোনো অ্যাকাউন্ট বা পাসওয়ার্ড নেই। ক্যালকুলেটর কিছু ছাড়াই চলে; ডাউনলোড, পরীক্ষা ও কেনাকাটায় শুধু আপনার ইমেইল লাগে, প্রতিটি ব্রাউজারে একবার নিশ্চিত করলেই হয়।"],
     ["ডাউনলোডের আগে ইমেইল নিশ্চিত করতে হয় কেন?", "এতে স্বয়ংক্রিয় অপব্যবহার বন্ধ হয় এবং ফাইল, সার্টিফিকেট ও অর্ডারের খবর আপনার নিজের ইনবক্সে পৌঁছায়। একবার নিশ্চিত করলে এই ব্রাউজার তা মনে রাখে।"],
-    ["পেইড বই, ফাইল বা বিশেষজ্ঞ পরীক্ষা কীভাবে কিনব?", "আইটেমটি খুলে Buy চাপুন। দেখানো নম্বরে bKash বা Nagad-এর \"Send Money\" দিয়ে টাকা পাঠান, তারপর Transaction ID লিখুন। আমরা প্রতিটি পেমেন্ট নিজে যাচাই করি এবং অনুমোদন হলে ইমেইল পাঠাই।"],
-    ["একটি পরীক্ষা কতবার দেওয়া যায়?", "ফ্রি পরীক্ষাগুলো দিনে কয়েকবার দেওয়া যায় (পরীক্ষার পাতায় দেখানো আছে)। বিশেষজ্ঞ পরীক্ষার এক পেমেন্টে তিনবার দেওয়া যায়।"],
+    ["পেইড বই, ফাইল বা প্রো পরীক্ষা কীভাবে কিনব?", "আইটেমটি খুলে Buy চাপুন। দেখানো নম্বরে bKash বা Nagad-এর \"Send Money\" দিয়ে টাকা পাঠান, তারপর Transaction ID লিখুন। আমরা প্রতিটি পেমেন্ট নিজে যাচাই করি এবং অনুমোদন হলে ইমেইল পাঠাই।"],
+    ["একটি পরীক্ষা কতবার দেওয়া যায়?", "ফ্রি পরীক্ষাগুলো দিনে কয়েকবার দেওয়া যায় (পরীক্ষার পাতায় দেখানো আছে)। প্রো পরীক্ষার এক পেমেন্টে তিনবার দেওয়া যায়।"],
     ["পরীক্ষার নম্বর কীভাবে দেওয়া হয়?", "জমা দেওয়ার পর অথবা সময় শেষ হলে স্বয়ংক্রিয়ভাবে সার্ভারে নম্বর দেওয়া হয়। বিষয়ভিত্তিক ফলাফল দেখতে পাবেন। প্রশ্নব্যাংক সুরক্ষার জন্য সঠিক উত্তর দেখানো হয় না।"],
     ["শুল্কহার ও বিনিময় হার কোথা থেকে আসে?", "আপনার কাছ থেকে। ProcureBest সরকারি হার প্রকাশ করে না। আপনার এইচএস কোডের হার এবং ব্যাংকের বিনিময় হার লিখুন।"],
     ["সার্টিফিকেট কি কোনো অ্যাক্রেডিটেশন?", "না। এটি ProcureBest-এর অনলাইন অ্যাসেসমেন্ট সার্টিফিকেট, যা যে কেউ আইডি বা QR কোড দিয়ে অনলাইনে যাচাই করতে পারেন।"],
@@ -144,9 +179,28 @@ export async function infoPage(c, page) {
   } else {
     inner = html`${raw(CONTENT[page][c.lang])}<p style="margin-top:28px"><a class="btn btn-secondary" href="${c.p("/contact")}">${c.t("footer.contact")}</a></p>`;
   }
+  if (page === "about") inner = html`${founderBlock(c, s)}<h2 id="about-us">${c.t("nav.about_us")}</h2>${raw(c.pick(s.about_en, s.about_bn) ? markdown(c.pick(s.about_en, s.about_bn)) : CONTENT.about[c.lang])}
+    <p style="margin-top:28px"><a class="btn btn-secondary" href="${c.p("/contact")}">${c.t("footer.contact")}</a></p>`;
   const lead = page === "about" ? c.t("page.about.lead") : page === "help" ? c.t("page.help.lead") : "";
   const body = html`${pageHead(c, { title, lead, narrow: true })}<section class="section-sm" style="padding-top:0"><div class="wrap wrap-narrow prose">${inner}</div></section>`;
   return c.html(await layout(c, { title, description: c.t(`page.${page}.meta`), body }));
+}
+
+// Founder profile (Admin → About & founder). Hidden until a name is entered.
+function founderBlock(c, s) {
+  const name = c.pick(s.founder_name_en, s.founder_name_bn);
+  if (!name) return "";
+  const title = c.pick(s.founder_title_en, s.founder_title_bn);
+  const bio = c.pick(s.founder_bio_en, s.founder_bio_bn);
+  const exp = c.pick(s.founder_experience_en, s.founder_experience_bn);
+  return html`<div class="founder not-prose" id="founder">
+    ${s.founder_photo_id ? html`<img class="founder-photo" src="/media/${s.founder_photo_id}" alt="${name}">` : html`<div class="founder-photo placeholder">${icon("user", 40)}</div>`}
+    <div><span class="eyebrow">${c.t("founder.eyebrow")}</span><h2 style="margin:0 0 4px">${name}</h2>
+      ${title ? html`<p class="muted" style="margin:0 0 14px">${title}</p>` : ""}
+      ${bio ? html`<div class="prose" style="font-size:17px">${raw(markdown(bio))}</div>` : ""}
+      ${/^https:\/\/(www\.)?linkedin\.com\//.test(s.founder_linkedin || "") ? html`<a class="btn btn-ghost btn-sm" href="${s.founder_linkedin}" target="_blank" rel="noopener">LinkedIn</a>` : ""}
+    </div></div>
+  ${exp ? html`<h2>${c.t("founder.experience")}</h2><div class="founder-exp">${raw(markdown(exp))}</div>` : ""}`;
 }
 
 async function contactPage(c, s) {

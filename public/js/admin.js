@@ -70,6 +70,43 @@
     });
   });
 
+  // ---------------------------------------------------------------- "Insert image" under Markdown boxes
+  async function uploadFile(file, kind, onProgress) {
+    const init = await api("/admin/api/files/init", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: file.name, size: file.size, kind }) });
+    if (!init.ok) throw new Error(init.error || "init failed");
+    for (let i = 0; i < init.chunks; i++) {
+      const part = file.slice(i * init.chunkSize, Math.min(file.size, (i + 1) * init.chunkSize));
+      const r = await api(`/admin/api/files/${init.id}/chunk/${i}`, { method: "PUT", headers: { "Content-Type": "application/octet-stream" }, body: part });
+      if (!r.ok) throw new Error(r.error || "upload failed");
+      if (onProgress) onProgress((i + 1) / init.chunks);
+    }
+    const done = await api(`/admin/api/files/${init.id}/complete`, { method: "POST" });
+    if (!done.ok) throw new Error(done.error || "complete failed");
+    return done;
+  }
+  document.querySelectorAll("[data-md-image]").forEach((box) => {
+    const input = box.querySelector('input[type="file"]');
+    const status = box.querySelector("[data-md-image-status]");
+    const area = document.getElementById(box.dataset.target);
+    input.addEventListener("change", async () => {
+      const file = input.files && input.files[0];
+      if (!file || !area) return;
+      status.textContent = T("Uploading…", "আপলোড হচ্ছে…");
+      try {
+        const done = await uploadFile(file, "cover", (p) => { status.textContent = T("Uploading… ", "আপলোড হচ্ছে… ") + Math.round(p * 100) + "%"; });
+        const alt = file.name.replace(/\.[^.]+$/, "").replace(/[\[\]]/g, "");
+        const snippet = `\n\n![${alt}](/media/${done.id})\n\n`;
+        const at = typeof area.selectionStart === "number" ? area.selectionStart : area.value.length;
+        area.value = area.value.slice(0, at) + snippet + area.value.slice(at);
+        area.focus();
+        area.selectionStart = area.selectionEnd = at + snippet.length;
+        status.textContent = T("Image added. Press Save to keep it.", "ছবি যোগ হয়েছে। রাখতে সেভ চাপুন।");
+      } catch (err) {
+        status.textContent = T("Upload failed: ", "আপলোড ব্যর্থ: ") + err.message;
+      } finally { input.value = ""; }
+    });
+  });
+
   // ---------------------------------------------------------------- starter content
   document.querySelectorAll("[data-seed-run]").forEach((btn) => {
     btn.addEventListener("click", async () => {

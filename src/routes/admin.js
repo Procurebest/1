@@ -12,9 +12,13 @@ import { parseCsv, toCsv } from "../lib/csv.js";
 import { TOPICS, topicLabel } from "../lib/exams.js";
 import { installStep, starterStatus, STEPS } from "../seed/install.js";
 import { HttpError } from "../app.js";
+import { ALL_CALCS } from "../lib/calclist.js";
+import { calcOff } from "../lib/settings.js";
+import { tr } from "../../public/js/calc/defs.js";
+import { mergeRoadmap } from "../../public/js/calc/roadmap.js";
 
 const PAGE = 50;
-const TYPES = ["book", "excel", "cv", "doc"];
+const TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
 const FILE_EXT = ["pdf", "xlsx", "xls", "xlsm", "csv", "docx", "doc", "pptx", "zip", "epub", "txt"];
 const MSG = {
   saved: ["Saved.", "সেভ হয়েছে।"], deleted: ["Deleted.", "মুছে ফেলা হয়েছে।"], approved: ["Order approved and the buyer was emailed.", "অর্ডার অনুমোদিত হয়েছে এবং ক্রেতাকে ইমেইল করা হয়েছে।"],
@@ -22,6 +26,8 @@ const MSG = {
   rejected: ["Order marked as not approved.", "অর্ডারটি অনুমোদিত হয়নি হিসেবে চিহ্নিত হয়েছে।"], revoked: ["Certificate revoked.", "সার্টিফিকেট বাতিল হয়েছে।"],
   reinstated: ["Certificate reinstated.", "সার্টিফিকেট আবার বৈধ করা হয়েছে।"], mail_ok: ["Test email sent. Check the inbox (and spam).", "টেস্ট ইমেইল পাঠানো হয়েছে। ইনবক্স (ও স্প্যাম) দেখুন।"],
   imported: ["Import finished.", "ইমপোর্ট শেষ হয়েছে।"], read: ["Marked as read.", "পড়া হয়েছে হিসেবে চিহ্নিত।"],
+  published: ["Published on the site.", "সাইটে প্রকাশিত হয়েছে।"], hidden: ["Hidden from the site.", "সাইট থেকে লুকানো হয়েছে।"],
+  created: ["Exam created. Now add its questions.", "পরীক্ষা তৈরি হয়েছে। এবার প্রশ্ন যোগ করুন।"],
 };
 
 // ------------------------------------------------------------------ layout & helpers
@@ -29,15 +35,22 @@ async function adminLayout(c, { title, body, active = "", narrow = false }) {
   const csrf = await c.csrfToken();
   const pending = Number(await scalar(c.env, "SELECT COUNT(*) FROM orders WHERE status='pending'"));
   const unread = Number(await scalar(c.env, "SELECT COUNT(*) FROM messages WHERE read_at IS NULL"));
+  const reviewsWaiting = Number(await scalar(c.env, "SELECT COUNT(*) FROM reviews WHERE status='pending'"));
   const nav = [
     ["dashboard", "/admin", "gauge", c.L("Dashboard", "ড্যাশবোর্ড")],
     ["orders", "/admin/orders", "receipt", c.L("Orders", "অর্ডার"), pending],
     ["library", "/admin/library", "book-open", c.L("Library", "লাইব্রেরি")],
+    ["courses", "/admin/courses", "calendar", c.L("Courses", "কোর্স")],
     ["blog", "/admin/posts?section=blog", "file", c.L("Blog", "ব্লগ")],
+    ["negotiation", "/admin/posts?section=negotiation", "chat", c.L("Negotiation Guru", "নেগোসিয়েশন গুরু")],
+    ["ai", "/admin/posts?section=ai", "sparkle", c.L("Procurement AI", "প্রকিউরমেন্ট এআই")],
     ["career", "/admin/posts?section=career", "briefcase", c.L("Career", "ক্যারিয়ার")],
     ["glossary", "/admin/glossary", "text", c.L("Glossary", "গ্লসারি")],
     ["exams", "/admin/exams", "award", c.L("Exams", "পরীক্ষা")],
     ["questions", "/admin/questions", "book", c.L("Question bank", "প্রশ্নব্যাংক")],
+    ["calculators", "/admin/calculators", "gauge", c.L("Calculators", "ক্যালকুলেটর")],
+    ["reviews", "/admin/reviews", "check-circle", c.L("Reviews", "রিভিউ"), reviewsWaiting],
+    ["about", "/admin/about", "user", c.L("About & founder", "পরিচিতি ও প্রতিষ্ঠাতা")],
     ["certificates", "/admin/certificates", "shield", c.L("Certificates", "সার্টিফিকেট")],
     ["emails", "/admin/emails", "mail", c.L("Emails", "ইমেইল তালিকা")],
     ["activity", "/admin/activity", "download", c.L("Downloads & activity", "ডাউনলোড ও কার্যক্রম")],
@@ -49,7 +62,7 @@ async function adminLayout(c, { title, body, active = "", narrow = false }) {
   return c.html(html`<html lang="${c.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title} — ProcureBest Admin</title><meta name="robots" content="noindex, nofollow"><meta name="csrf-token" content="${csrf}">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/css/app.css?v=${ASSET_V}"><link rel="stylesheet" href="/css/admin.css?v=${ASSET_V}"></head>
 <body class="admin"><div class="adm">
 <aside class="adm-side" data-adm-side>
@@ -109,11 +122,19 @@ function uploadField(c, { name, label, file, accept, kind, help }) {
   </div>`;
 }
 
+// "Insert image" button under a Markdown box: uploads a picture and adds ![](/media/ID) at the cursor.
+const imageInsert = (c, target) => html`<div class="md-image" data-md-image data-target="${target}">
+  <label class="btn btn-ghost btn-sm" style="cursor:pointer">${icon("upload", 14)} ${c.L("Insert image", "ছবি যোগ করুন")}<input type="file" accept=".png,.jpg,.jpeg,.webp" hidden></label>
+  <span class="tiny muted" data-md-image-status>${c.L("PNG, JPG or WebP up to 3 MB. It is placed where the cursor is.", "PNG, JPG বা WebP, সর্বোচ্চ ৩ MB। কার্সর যেখানে, ছবি সেখানে বসবে।")}</span></div>`;
+const imageField = async (c, name, label, id, help) => uploadField(c, { name, label, file: id ? await getFile(c.env, id) : null, kind: "cover", accept: ".png,.jpg,.jpeg,.webp",
+  help: help || c.L("PNG, JPG or WebP, under 1 MB works best.", "PNG, JPG বা WebP, ১ MB-এর কম হলে ভালো।") });
+const checkUpload = async (c, id) => !id || Boolean(await one(c.env, "SELECT id FROM files WHERE id=? AND complete=1", id));
+
 // ------------------------------------------------------------------ auth
 async function loginPage(c, error = "") {
   const configured = Boolean(c.env.ADMIN_PASSWORD && String(c.env.ADMIN_PASSWORD).length >= 8);
   return c.html(html`<html lang="${c.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Admin — ProcureBest</title>
-<meta name="robots" content="noindex"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&display=swap"><link rel="stylesheet" href="/css/app.css?v=${ASSET_V}"></head>
+<meta name="robots" content="noindex"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&display=swap"><link rel="stylesheet" href="/css/app.css?v=${ASSET_V}"></head>
 <body style="background:var(--surface)"><section class="section"><div class="wrap auth-box">
   <div class="panel"><img src="/img/logo.svg" alt="ProcureBest" style="height:24px"><h1 style="font-size:28px;margin-top:22px">${c.L("Admin sign in", "অ্যাডমিন সাইন ইন")}</h1>
   ${!configured ? html`<div class="alert alert-warn" style="margin:16px 0">${icon("alert", 18)}<div>${c.L("The admin password is not set yet. In Cloudflare open this Worker → Settings → Variables and Secrets, add a secret named ADMIN_PASSWORD (at least 12 characters), then reload this page.", "অ্যাডমিন পাসওয়ার্ড এখনো সেট করা হয়নি। Cloudflare-এ এই Worker → Settings → Variables and Secrets খুলে ADMIN_PASSWORD নামে একটি secret যোগ করুন (কমপক্ষে ১২ অক্ষর), তারপর পাতাটি আবার লোড করুন।")}</div></div>` : ""}
@@ -202,7 +223,7 @@ async function dashboard(c) {
 async function libraryList(c) {
   const type = TYPES.includes(c.url.searchParams.get("type")) ? c.url.searchParams.get("type") : "";
   const rows = await all(c.env, `SELECT i.*, f.name AS file_name, f.size AS file_size FROM items i LEFT JOIN files f ON f.id=i.file_id ${type ? "WHERE i.type=?" : ""} ORDER BY i.sort, i.id DESC`, ...(type ? [type] : []));
-  const typeLabel = { book: c.L("Book", "বই"), excel: "Excel", cv: c.L("CV sample", "সিভি নমুনা"), doc: c.L("Document", "ডকুমেন্ট") };
+  const typeLabel = { book: c.L("Book", "বই"), pdf: "PDF", excel: c.L("Excel template", "এক্সেল টেমপ্লেট"), doc: c.L("Document template", "ডকুমেন্ট টেমপ্লেট"), cv: c.L("CV sample", "সিভি নমুনা"), other: c.L("Other", "অন্যান্য") };
   const body = html`<div class="row between" style="margin-bottom:16px">
     <div class="chips"><a class="chip ${type ? "" : "on"}" href="/admin/library">${c.L("All", "সব")}</a>${TYPES.map((t) => html`<a class="chip ${type === t ? "on" : ""}" href="/admin/library?type=${t}">${typeLabel[t]}</a>`)}</div>
     <a class="btn btn-primary" href="/admin/library/new${type ? "?type=" + type : ""}">${icon("plus", 16)} ${c.L("Add item", "আইটেম যোগ করুন")}</a></div>
@@ -220,9 +241,10 @@ async function libraryEdit(c) {
   if (!it) throw new HttpError(404);
   const file = it.file_id ? await getFile(c.env, it.file_id) : null;
   const cover = it.cover_id ? await getFile(c.env, it.cover_id) : null;
+  const previewFile = it.preview_id ? await getFile(c.env, it.preview_id) : null;
   const body = html`<form method="post" action="/admin/library/${isNew ? "new" : it.id}" class="panel">${await csrfInput(c)}
   <div class="form-grid">
-    ${sel("type", c.L("Type", "ধরন"), it.type, [["book", c.L("Book", "বই")], ["excel", "Excel"], ["cv", c.L("CV sample", "সিভি নমুনা")], ["doc", c.L("Document (Word etc.)", "ডকুমেন্ট (ওয়ার্ড ইত্যাদি)")]], { third: true })}
+    ${sel("type", c.L("Category", "ক্যাটাগরি"), it.type, [["book", c.L("Book", "বই")], ["pdf", c.L("PDF guide", "পিডিএফ গাইড")], ["excel", c.L("Excel template", "এক্সেল টেমপ্লেট")], ["doc", c.L("Document template (Word etc.)", "ডকুমেন্ট টেমপ্লেট (ওয়ার্ড ইত্যাদি)")], ["cv", c.L("CV sample", "সিভি নমুনা")], ["other", c.L("Other resource", "অন্যান্য রিসোর্স")]], { third: true })}
     ${sel("status", c.L("Status", "অবস্থা"), it.status, [["draft", c.L("Draft (hidden)", "খসড়া (লুকানো)")], ["published", c.L("Published", "প্রকাশিত")]], { third: true })}
     ${fld("price", c.L("Price in taka (0 = free)", "মূল্য টাকায় (০ = ফ্রি)"), it.price, { type: "number", third: true, attrs: 'min="0" step="1"' })}
     ${fld("title_en", c.L("Title (English)", "শিরোনাম (ইংরেজি)"), it.title_en, { required: true })}
@@ -234,6 +256,8 @@ async function libraryEdit(c) {
     ${uploadField(c, { name: "file_id", label: c.L("Downloadable file", "ডাউনলোডের ফাইল"), file, kind: "file", accept: FILE_EXT.map((e) => "." + e).join(","),
       help: c.L(`PDF, Excel, Word, PowerPoint, ZIP or EPUB — up to ${fileSize(c, maxFileSize(c.env))}.`, `PDF, Excel, Word, PowerPoint, ZIP বা EPUB — সর্বোচ্চ ${fileSize(c, maxFileSize(c.env))}।`) })}
     ${uploadField(c, { name: "cover_id", label: c.L("Cover image (optional, for books)", "কভার ছবি (ঐচ্ছিক, বইয়ের জন্য)"), file: cover, kind: "cover", accept: ".png,.jpg,.jpeg,.webp", help: c.L("PNG, JPG or WebP, ideally portrait, under 1 MB.", "PNG, JPG বা WebP, লম্বালম্বি হলে ভালো, ১ MB-এর কম।") })}
+    ${uploadField(c, { name: "preview_id", label: c.L("PDF preview (optional, public)", "পিডিএফ প্রিভিউ (ঐচ্ছিক, সবার জন্য খোলা)"), file: previewFile, kind: "preview", accept: ".pdf",
+      help: c.L("A few sample pages as a separate PDF. Anyone can read it on the item page without an email — do not upload the full paid book here.", "কয়েকটি নমুনা পাতা আলাদা পিডিএফ হিসেবে। যে কেউ ইমেইল ছাড়াই আইটেমের পাতায় পড়তে পারবে — পুরো পেইড বই এখানে দেবেন না।") })}
     ${fld("slug", c.L("Web address (slug)", "ওয়েব ঠিকানা (slug)"), it.slug, { help: c.L("Leave empty to create it from the English title.", "ফাঁকা রাখলে ইংরেজি শিরোনাম থেকে তৈরি হবে।") })}
     ${fld("sort", c.L("Order (smaller first)", "ক্রম (ছোট সংখ্যা আগে)"), it.sort, { type: "number" })}
   </div>
@@ -257,21 +281,24 @@ async function librarySave(c) {
   const type = TYPES.includes(f.get("type")) ? f.get("type") : "book";
   let fileId = clip(f.get("file_id"), 40) || null;
   let coverId = clip(f.get("cover_id"), 40) || null;
+  let previewId = clip(f.get("preview_id"), 40) || null;
   if (f.get("file_id_remove")) fileId = null;
   if (f.get("cover_id_remove")) coverId = null;
-  for (const id of [fileId, coverId]) if (id && !(await one(c.env, "SELECT id FROM files WHERE id=? AND complete=1", id))) return c.redirect(errBack(`/admin/library/${c.params.id}`, c.L("The upload did not finish. Please upload the file again.", "আপলোড শেষ হয়নি। ফাইলটি আবার আপলোড করুন।")));
+  if (f.get("preview_id_remove")) previewId = null;
+  for (const id of [fileId, coverId, previewId]) if (id && !(await one(c.env, "SELECT id FROM files WHERE id=? AND complete=1", id))) return c.redirect(errBack(`/admin/library/${c.params.id}`, c.L("The upload did not finish. Please upload the file again.", "আপলোড শেষ হয়নি। ফাইলটি আবার আপলোড করুন।")));
   const vals = [slug, type, titleEn, clip(f.get("title_bn"), 200), clip(f.get("summary_en"), 600), clip(f.get("summary_bn"), 600),
     clip(f.get("body_en"), 20000), clip(f.get("body_bn"), 20000), Math.max(0, toInt(f.get("price"))), fileId, coverId,
     f.get("status") === "published" ? "published" : "draft", toInt(f.get("sort"), 100), nowIso()];
   let id;
   if (isNew) {
-    const res = await run(c.env, `INSERT INTO items(slug,type,title_en,title_bn,summary_en,summary_bn,body_en,body_bn,price,file_id,cover_id,status,sort,updated_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, ...vals, nowIso());
+    const res = await run(c.env, `INSERT INTO items(slug,type,title_en,title_bn,summary_en,summary_bn,body_en,body_bn,price,file_id,cover_id,status,sort,updated_at,created_at,preview_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, ...vals, nowIso(), previewId);
     id = res.meta.last_row_id;
   } else {
-    await run(c.env, `UPDATE items SET slug=?,type=?,title_en=?,title_bn=?,summary_en=?,summary_bn=?,body_en=?,body_bn=?,price=?,file_id=?,cover_id=?,status=?,sort=?,updated_at=? WHERE id=?`, ...vals, old.id);
+    await run(c.env, `UPDATE items SET slug=?,type=?,title_en=?,title_bn=?,summary_en=?,summary_bn=?,body_en=?,body_bn=?,price=?,file_id=?,cover_id=?,status=?,sort=?,updated_at=?,preview_id=? WHERE id=?`, ...vals, previewId, old.id);
     id = old.id;
     if (old.file_id && old.file_id !== fileId) await deleteFile(c.env, old.file_id);
     if (old.cover_id && old.cover_id !== coverId) await deleteFile(c.env, old.cover_id);
+    if (old.preview_id && old.preview_id !== previewId) await deleteFile(c.env, old.preview_id);
     if (old.slug !== slug) await run(c.env, "UPDATE entitlements SET item_ref=? WHERE item_type='file' AND item_ref=?", slug, old.slug);
   }
   return c.redirect(back(`/admin/library/${id}`, "saved"));
@@ -282,6 +309,7 @@ async function libraryDelete(c) {
   if (it) {
     await deleteFile(c.env, it.file_id);
     await deleteFile(c.env, it.cover_id);
+    await deleteFile(c.env, it.preview_id);
     await run(c.env, "DELETE FROM items WHERE id=?", it.id);
   }
   return c.redirect(back("/admin/library", "deleted"));
@@ -290,11 +318,11 @@ async function libraryDelete(c) {
 // Upload API (JSON + raw chunks)
 async function uploadInit(c) {
   const b = await c.body();
-  const name = clip(b.name, 200), size = toInt(b.size, 0), kind = b.kind === "cover" ? "cover" : "file";
+  const name = clip(b.name, 200), size = toInt(b.size, 0), kind = ["cover", "preview"].includes(b.kind) ? b.kind : "file";
   const e = ext(name);
-  const allowed = kind === "cover" ? IMAGE_EXT : FILE_EXT;
+  const allowed = kind === "cover" ? IMAGE_EXT : kind === "preview" ? ["pdf"] : FILE_EXT;
   if (!allowed.includes(e)) return c.json({ ok: false, error: c.L(`This file type (.${e}) is not allowed.`, `এই ধরনের ফাইল (.${e}) অনুমোদিত নয়।`) }, 400);
-  const max = kind === "cover" ? 3 * 1024 * 1024 : maxFileSize(c.env);
+  const max = kind === "cover" ? 3 * 1024 * 1024 : kind === "preview" ? Math.min(maxFileSize(c.env), 20 * 1024 * 1024) : maxFileSize(c.env);
   if (size <= 0 || size > max) return c.json({ ok: false, error: c.L(`The file is too large. Maximum: ${fileSize(c, max)}.`, `ফাইলটি অনেক বড়। সর্বোচ্চ: ${fileSize(c, max)}।`) }, 400);
   return c.json({ ok: true, ...(await createFile(c.env, name, size)) });
 }
@@ -321,15 +349,18 @@ async function seedStep(c) {
 }
 
 // ------------------------------------------------------------------ posts (blog & career)
-const SECTIONS = ["blog", "career"];
+const SECTIONS = ["blog", "negotiation", "ai", "career"];
+const SECTION_PATH = { blog: "blog", career: "career", negotiation: "negotiation-guru", ai: "procurement-ai" };
+const sectionTitle = (c, section) => ({ blog: c.L("Blog articles", "ব্লগ আর্টিকেল"), career: c.L("Career articles", "ক্যারিয়ার লেখা"),
+  negotiation: c.L("Negotiation Guru", "নেগোসিয়েশন গুরু"), ai: c.L("Procurement AI", "প্রকিউরমেন্ট এআই") }[section]);
 async function postsList(c) {
   const section = SECTIONS.includes(c.url.searchParams.get("section")) ? c.url.searchParams.get("section") : "blog";
-  const rows = await all(c.env, "SELECT id, slug, title_en, title_bn, category, status, published_at FROM posts WHERE section=? ORDER BY COALESCE(published_at, updated_at) DESC", section);
-  const title = section === "career" ? c.L("Career articles", "ক্যারিয়ার লেখা") : c.L("Blog articles", "ব্লগ আর্টিকেল");
+  const rows = await all(c.env, "SELECT id, slug, title_en, title_bn, category, status, published_at, cover_id FROM posts WHERE section=? ORDER BY COALESCE(published_at, updated_at) DESC", section);
+  const title = sectionTitle(c, section);
   const body = html`<div class="row between" style="margin-bottom:16px"><span class="small muted">${c.d(rows.length)} ${c.L("articles", "টি লেখা")}</span>
     <a class="btn btn-primary" href="/admin/posts/new?section=${section}">${icon("plus", 16)} ${c.L("New article", "নতুন লেখা")}</a></div>
   <div class="table-wrap"><table><thead><tr><th>${c.L("Title", "শিরোনাম")}</th><th>${c.L("Category", "ক্যাটাগরি")}</th><th>${c.L("Published", "প্রকাশ")}</th><th>${c.L("Status", "অবস্থা")}</th><th></th></tr></thead>
-  <tbody>${rows.length ? rows.map((r) => html`<tr><td><strong>${c.pick(r.title_en, r.title_bn)}</strong><div class="tiny muted">/${section}/${r.slug}</div></td><td class="small">${r.category}</td><td class="small">${c.date(r.published_at)}</td><td>${statusTag(c, r.status)}</td>
+  <tbody>${rows.length ? rows.map((r) => html`<tr><td><div class="row" style="gap:10px;flex-wrap:nowrap">${r.cover_id ? html`<img src="/media/${r.cover_id}" alt="" class="adm-thumb">` : ""}<div><strong>${c.pick(r.title_en, r.title_bn)}</strong><div class="tiny muted">/${SECTION_PATH[section]}/${r.slug}</div></div></div></td><td class="small">${r.category}</td><td class="small">${c.date(r.published_at)}</td><td>${statusTag(c, r.status)}</td>
     <td class="num"><a class="btn btn-ghost btn-sm" href="/admin/posts/${r.id}">${c.L("Edit", "এডিট")}</a></td></tr>`) : html`<tr><td colspan="5" class="muted">${c.L("No articles yet.", "এখনো কোনো লেখা নেই।")}</td></tr>`}</tbody></table></div>`;
   return adminLayout(c, { title, body, active: section });
 }
@@ -340,15 +371,19 @@ async function postEdit(c) {
   const p = isNew ? { section, status: "draft", published_at: nowIso().slice(0, 10), author: "ProcureBest", refs_json: "[]" } : await one(c.env, "SELECT * FROM posts WHERE id=?", toInt(c.params.id));
   if (!p) throw new HttpError(404);
   const refs = parseJson(p.refs_json, []).map((r) => (r.url ? `${r.title || ""} | ${r.url}` : r.title)).join("\n");
-  const cats = p.section === "career" ? ["interview", "cv", "skills", "growth"] : ["fundamentals", "tco", "supplier-evaluation", "incoterms", "bangladesh-import", "china-sourcing", "inventory", "kpi", "negotiation", "import-documentation"];
+  const cats = { career: ["interview", "cv", "skills", "growth"], negotiation: ["preparation", "tactics", "scripts", "case-study"], ai: ["prompts", "tools", "spend-analysis", "automation"] }[p.section]
+    || ["fundamentals", "tco", "supplier-evaluation", "incoterms", "bangladesh-import", "china-sourcing", "inventory", "kpi", "negotiation", "import-documentation"];
   const body = html`<form method="post" action="/admin/posts/${isNew ? "new" : p.id}" class="panel">${await csrfInput(c)}<input type="hidden" name="section" value="${p.section}">
   <div class="form-grid">
     ${fld("title_en", c.L("Title (English)", "শিরোনাম (ইংরেজি)"), p.title_en, { required: true })}
     ${fld("title_bn", c.L("Title (Bengali)", "শিরোনাম (বাংলা)"), p.title_bn)}
     ${fld("summary_en", c.L("Summary (English)", "সারসংক্ষেপ (ইংরেজি)"), p.summary_en, { rows: 2 })}
     ${fld("summary_bn", c.L("Summary (Bengali)", "সারসংক্ষেপ (বাংলা)"), p.summary_bn, { rows: 2 })}
+    ${await imageField(c, "cover_id", c.L("Cover picture (shown on the card and at the top of the article)", "কভার ছবি (কার্ডে ও লেখার ওপরে দেখাবে)"), p.cover_id, c.L("Landscape picture, about 1600 × 900 px, under 1 MB.", "আড়াআড়ি ছবি, প্রায় ১৬০০ × ৯০০ পিক্সেল, ১ MB-এর কম।"))}
     ${fld("body_en", c.L("Article (English, Markdown)", "লেখা (ইংরেজি, Markdown)"), p.body_en, { rows: 18, full: true, help: c.L("## Heading, ### Subheading, - list, **bold**, [link text](https://…), > quote, tables with | pipes |.", "## শিরোনাম, ### উপশিরোনাম, - তালিকা, **মোটা**, [লিংকের লেখা](https://…), > উদ্ধৃতি, | পাইপ | দিয়ে টেবিল।") })}
+    <div class="field full" style="margin-top:-10px">${imageInsert(c, "f-body_en")}</div>
     ${fld("body_bn", c.L("Article (Bengali, Markdown)", "লেখা (বাংলা, Markdown)"), p.body_bn, { rows: 18, full: true, help: c.L("If empty, the English article is shown with a note.", "ফাঁকা থাকলে নোটসহ ইংরেজি লেখাটি দেখানো হবে।") })}
+    <div class="field full" style="margin-top:-10px">${imageInsert(c, "f-body_bn")}</div>
     <div class="field third"><label for="f-category">${c.L("Category", "ক্যাটাগরি")}</label><input id="f-category" name="category" value="${p.category || ""}" list="cats"><datalist id="cats">${cats.map((k) => html`<option value="${k}">`)}</datalist></div>
     ${sel("status", c.L("Status", "অবস্থা"), p.status, [["draft", c.L("Draft (hidden)", "খসড়া (লুকানো)")], ["published", c.L("Published", "প্রকাশিত")]], { third: true })}
     ${fld("published_at", c.L("Publish date", "প্রকাশের তারিখ"), (p.published_at || "").slice(0, 10), { type: "date", third: true })}
@@ -357,9 +392,9 @@ async function postEdit(c) {
     ${fld("refs", c.L("References (one per line: Title | https://link)", "রেফারেন্স (প্রতি লাইনে একটি: শিরোনাম | https://লিংক)"), refs, { rows: 3, full: true })}
   </div>
   <div class="form-actions"><button class="btn btn-primary" type="submit">${c.L("Save", "সেভ করুন")}</button><a class="btn btn-ghost" href="/admin/posts?section=${p.section}">${c.L("Cancel", "বাতিল")}</a>
-    ${!isNew && p.status === "published" ? html`<a class="link small" href="/${c.lang}/${p.section}/${p.slug}" target="_blank">${c.L("View on site", "সাইটে দেখুন")} ${icon("arrow-right", 14)}</a>` : ""}</div></form>
+    ${!isNew && p.status === "published" ? html`<a class="link small" href="/${c.lang}/${SECTION_PATH[p.section]}/${p.slug}" target="_blank">${c.L("View on site", "সাইটে দেখুন")} ${icon("arrow-right", 14)}</a>` : ""}</div></form>
   ${!isNew ? html`<form method="post" action="/admin/posts/${p.id}/delete" style="margin-top:16px" data-confirm="${c.L("Delete this article permanently?", "লেখাটি স্থায়ীভাবে মুছে ফেলবেন?")}">${await csrfInput(c)}<button class="btn btn-ghost btn-sm" type="submit" style="color:var(--err)">${icon("trash", 15)} ${c.L("Delete article", "লেখা মুছুন")}</button></form>` : ""}`;
-  return adminLayout(c, { title: isNew ? c.L("New article", "নতুন লেখা") : c.pick(p.title_en, p.title_bn), body, active: p.section });
+  return adminLayout(c, { title: isNew ? `${c.L("New article", "নতুন লেখা")} — ${sectionTitle(c, p.section)}` : c.pick(p.title_en, p.title_bn), body, active: p.section });
 }
 
 async function postSave(c) {
@@ -376,16 +411,24 @@ async function postSave(c) {
     return /^https?:\/\//.test(u || "") ? { title: t, url: u } : /^https?:\/\//.test(t) ? { title: t, url: t } : { title: t };
   });
   const date = /^\d{4}-\d{2}-\d{2}$/.test(f.get("published_at") || "") ? f.get("published_at") : nowIso().slice(0, 10);
+  let coverId = clip(f.get("cover_id"), 40) || null;
+  if (f.get("cover_id_remove")) coverId = null;
+  if (!(await checkUpload(c, coverId))) return c.redirect(errBack(`/admin/posts/${c.params.id}?section=${section}`, c.L("The picture upload did not finish. Please upload it again.", "ছবির আপলোড শেষ হয়নি। আবার আপলোড করুন।")));
   const vals = [slug, clip(f.get("category"), 40).toLowerCase(), titleEn, clip(f.get("title_bn"), 200), clip(f.get("summary_en"), 600), clip(f.get("summary_bn"), 600),
     clip(f.get("body_en"), 60000), clip(f.get("body_bn"), 60000), clip(f.get("author"), 80) || "ProcureBest", JSON.stringify(refs),
     f.get("status") === "published" ? "published" : "draft", date, nowIso()];
   let id;
-  if (isNew) id = (await run(c.env, `INSERT INTO posts(slug,category,title_en,title_bn,summary_en,summary_bn,body_en,body_bn,author,refs_json,status,published_at,updated_at,section) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, ...vals, section)).meta.last_row_id;
-  else { await run(c.env, `UPDATE posts SET slug=?,category=?,title_en=?,title_bn=?,summary_en=?,summary_bn=?,body_en=?,body_bn=?,author=?,refs_json=?,status=?,published_at=?,updated_at=? WHERE id=?`, ...vals, old.id); id = old.id; }
+  if (isNew) id = (await run(c.env, `INSERT INTO posts(slug,category,title_en,title_bn,summary_en,summary_bn,body_en,body_bn,author,refs_json,status,published_at,updated_at,section,cover_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, ...vals, section, coverId)).meta.last_row_id;
+  else {
+    await run(c.env, `UPDATE posts SET slug=?,category=?,title_en=?,title_bn=?,summary_en=?,summary_bn=?,body_en=?,body_bn=?,author=?,refs_json=?,status=?,published_at=?,updated_at=?,cover_id=? WHERE id=?`, ...vals, coverId, old.id);
+    id = old.id;
+    if (old.cover_id && old.cover_id !== coverId) await deleteFile(c.env, old.cover_id);
+  }
   return c.redirect(back(`/admin/posts/${id}`, "saved"));
 }
 async function postDelete(c) {
-  const p = await one(c.env, "SELECT section FROM posts WHERE id=?", toInt(c.params.id));
+  const p = await one(c.env, "SELECT section, cover_id FROM posts WHERE id=?", toInt(c.params.id));
+  if (p && p.cover_id) await deleteFile(c.env, p.cover_id);
   await run(c.env, "DELETE FROM posts WHERE id=?", toInt(c.params.id));
   return c.redirect(back(`/admin/posts?section=${p ? p.section : "blog"}`, "deleted"));
 }
@@ -422,15 +465,16 @@ async function glossarySave(c) {
 
 // ------------------------------------------------------------------ exams & questions
 async function examsAdmin(c) {
-  const lvs = await all(c.env, "SELECT l.*, (SELECT COUNT(*) FROM questions q WHERE q.level_code=l.code AND q.status='published') AS published_q FROM exam_levels l ORDER BY sort");
+  const lvs = await all(c.env, `SELECT l.*, (SELECT COUNT(*) FROM questions q WHERE q.level_code=l.code AND q.status='published') AS published_q,
+    (SELECT COUNT(*) FROM attempts a WHERE a.level_code=l.code) AS attempts FROM exam_levels l ORDER BY sort`);
   const csrf = await csrfInput(c);
-  const body = html`<p class="small muted" style="margin-bottom:16px">${c.L("Each exam draws the set number of questions at random from its published questions. Put a price above 0 to make an exam paid; buyers get the number of attempts shown per payment.", "প্রতিটি পরীক্ষা তার প্রকাশিত প্রশ্ন থেকে নির্ধারিত সংখ্যক প্রশ্ন এলোমেলোভাবে নেয়। পরীক্ষা পেইড করতে মূল্য ০-এর বেশি দিন; প্রতি পেমেন্টে ক্রেতা নির্ধারিত সংখ্যকবার পরীক্ষা দিতে পারবেন।")}</p>
-  ${lvs.map((lv) => html`<form method="post" action="/admin/exams/${lv.code}" class="panel" style="margin-bottom:18px">${csrf}
-    <div class="row between"><h3 style="margin:0">${c.pick(lv.title_en, lv.title_bn)} <span class="tag">${lv.code}</span></h3>
+  const forms = [];
+  for (const lv of lvs) forms.push(html`<form method="post" action="/admin/exams/${lv.code}" class="panel" style="margin-bottom:18px" id="exam-${lv.code}">${csrf}
+    <div class="row between"><h3 style="margin:0">${c.pick(lv.title_en, lv.title_bn)} <span class="tag">${lv.code}</span> ${lv.published ? html`<span class="tag ok">${c.L("Visible", "দেখানো হচ্ছে")}</span>` : html`<span class="tag warn">${c.L("Hidden", "লুকানো")}</span>`}</h3>
       <span class="small ${lv.published_q < lv.question_count ? "" : "muted"}" style="${lv.published_q < lv.question_count ? "color:var(--err)" : ""}">${c.d(lv.published_q)} ${c.L("published questions", "প্রকাশিত প্রশ্ন")} · <a href="/admin/questions?level=${lv.code}">${c.L("Manage", "পরিচালনা")}</a></span></div>
     <div class="form-grid" style="margin-top:16px">
       ${fld("title_en", c.L("Name (English)", "নাম (ইংরেজি)"), lv.title_en, { third: true })}${fld("title_bn", c.L("Name (Bengali)", "নাম (বাংলা)"), lv.title_bn, { third: true })}
-      ${sel("published", c.L("Visible", "দেখানো হবে"), lv.published, [[1, c.L("Yes", "হ্যাঁ")], [0, c.L("No (hidden)", "না (লুকানো)")]], { third: true })}
+      ${sel("published", c.L("Show on the site", "সাইটে দেখানো"), lv.published, [[1, c.L("Yes", "হ্যাঁ")], [0, c.L("No (hidden)", "না (লুকানো)")]], { third: true })}
       ${fld("desc_en", c.L("Description (English)", "বিবরণ (ইংরেজি)"), lv.desc_en, { rows: 2 })}${fld("desc_bn", c.L("Description (Bengali)", "বিবরণ (বাংলা)"), lv.desc_bn, { rows: 2 })}
       ${fld("question_count", c.L("Questions per exam", "প্রতি পরীক্ষায় প্রশ্ন"), lv.question_count, { type: "number", third: true, attrs: 'min="5" max="100"' })}
       ${fld("time_limit_min", c.L("Time limit (minutes)", "সময় (মিনিট)"), lv.time_limit_min, { type: "number", third: true, attrs: 'min="5" max="240"' })}
@@ -438,17 +482,64 @@ async function examsAdmin(c) {
       ${fld("price", c.L("Price in taka (0 = free)", "মূল্য টাকায় (০ = ফ্রি)"), lv.price, { type: "number", third: true, attrs: 'min="0"' })}
       ${fld("attempts_per_purchase", c.L("Attempts per payment (paid exams)", "প্রতি পেমেন্টে কতবার (পেইড)"), lv.attempts_per_purchase, { type: "number", third: true, attrs: 'min="1" max="20"' })}
       ${fld("free_attempts_per_day", c.L("Attempts per day (free exams)", "দিনে কতবার (ফ্রি)"), lv.free_attempts_per_day, { type: "number", third: true, attrs: 'min="1" max="20"' })}
-    </div><div class="form-actions"><button class="btn btn-primary" type="submit">${c.L("Save", "সেভ করুন")}</button></div></form>`)}`;
+      ${sel("certificate", c.L("Certificate when passed", "পাস করলে সার্টিফিকেট"), lv.certificate, [[1, c.L("Yes", "হ্যাঁ")], [0, c.L("No — result can be shared", "না — শুধু ফলাফল শেয়ার")]], { third: true })}
+      ${fld("sort", c.L("Order (smaller first)", "ক্রম (ছোট সংখ্যা আগে)"), lv.sort, { type: "number", third: true })}
+      ${await imageField(c, "thumb_id", c.L("Thumbnail picture (optional)", "থাম্বনেইল ছবি (ঐচ্ছিক)"), lv.thumb_id, c.L("Landscape picture, about 1200 × 675 px.", "আড়াআড়ি ছবি, প্রায় ১২০০ × ৬৭৫ পিক্সেল।"))}
+    </div><div class="form-actions"><button class="btn btn-primary" type="submit">${c.L("Save", "সেভ করুন")}</button>
+      ${lv.published ? html`<a class="link small" href="/${c.lang}/exams/${lv.code}" target="_blank">${c.L("View on site", "সাইটে দেখুন")} ${icon("arrow-right", 14)}</a>` : ""}</div></form>
+    ${!lv.attempts ? html`<form method="post" action="/admin/exams/${lv.code}/delete" style="margin:-8px 0 22px" data-confirm="${c.L("Delete this exam and all its questions?", "পরীক্ষা ও এর সব প্রশ্ন মুছে ফেলবেন?")}">${csrf}<button class="btn btn-ghost btn-sm" style="color:var(--err)">${icon("trash", 14)} ${c.L("Delete exam", "পরীক্ষা মুছুন")}</button></form>`
+      : html`<p class="tiny muted" style="margin:-8px 0 22px">${c.L("This exam has been taken, so it cannot be deleted — hide it instead.", "এই পরীক্ষা ইতিমধ্যে দেওয়া হয়েছে, তাই মোছা যাবে না — লুকিয়ে রাখুন।")}</p>`}`);
+  const body = html`<div class="row between" style="margin-bottom:16px"><p class="small muted" style="margin:0;max-width:720px">${c.L("Each exam draws the set number of questions at random from its published questions. Put a price above 0 to make an exam paid; buyers get the number of attempts shown per payment. Choose \"Show on the site: No\" to hide an exam.", "প্রতিটি পরীক্ষা তার প্রকাশিত প্রশ্ন থেকে নির্ধারিত সংখ্যক প্রশ্ন এলোমেলোভাবে নেয়। পরীক্ষা পেইড করতে মূল্য ০-এর বেশি দিন; প্রতি পেমেন্টে ক্রেতা নির্ধারিত সংখ্যকবার পরীক্ষা দিতে পারবেন। কোনো পরীক্ষা লুকাতে \"সাইটে দেখানো: না\" বেছে নিন।")}</p>
+    <a class="btn btn-primary" href="#new-exam">${icon("plus", 16)} ${c.L("New exam", "নতুন পরীক্ষা")}</a></div>
+  ${forms}
+  <form method="post" action="/admin/exams-new" class="panel" id="new-exam">${csrf}
+    <h3>${c.L("New exam", "নতুন পরীক্ষা")}</h3>
+    <p class="help">${c.L("The new exam starts hidden. Add at least as many questions as \"Questions per exam\" (Question bank → New question, or Import CSV), then set it to visible.", "নতুন পরীক্ষা প্রথমে লুকানো থাকবে। \"প্রতি পরীক্ষায় প্রশ্ন\"-এর সমান বা বেশি প্রশ্ন যোগ করুন (প্রশ্নব্যাংক → নতুন প্রশ্ন, বা CSV ইমপোর্ট), তারপর দেখানো চালু করুন।")}</p>
+    <div class="form-grid" style="margin-top:12px">
+      ${fld("title_en", c.L("Name (English)", "নাম (ইংরেজি)"), "", { third: true, required: true })}${fld("title_bn", c.L("Name (Bengali)", "নাম (বাংলা)"), "", { third: true })}
+      ${fld("code", c.L("Short code (English letters)", "সংক্ষিপ্ত কোড (ইংরেজি অক্ষর)"), "", { third: true, help: c.L("Used in the web address, e.g. negotiation → /exams/negotiation. Leave empty to create it from the name.", "ওয়েব ঠিকানায় ব্যবহৃত হবে, যেমন negotiation → /exams/negotiation। ফাঁকা রাখলে নাম থেকে তৈরি হবে।") })}
+      ${fld("price", c.L("Price in taka (0 = free)", "মূল্য টাকায় (০ = ফ্রি)"), 0, { type: "number", third: true, attrs: 'min="0"' })}
+      ${sel("certificate", c.L("Certificate when passed", "পাস করলে সার্টিফিকেট"), 1, [[1, c.L("Yes", "হ্যাঁ")], [0, c.L("No — result can be shared", "না — শুধু ফলাফল শেয়ার")]], { third: true })}
+      ${fld("question_count", c.L("Questions per exam", "প্রতি পরীক্ষায় প্রশ্ন"), 20, { type: "number", third: true, attrs: 'min="5" max="100"' })}
+    </div><div class="form-actions"><button class="btn btn-primary" type="submit">${icon("plus", 16)} ${c.L("Create exam", "পরীক্ষা তৈরি করুন")}</button></div></form>`;
   return adminLayout(c, { title: c.L("Exams", "পরীক্ষা"), body, active: "exams" });
 }
 async function examSave(c) {
   const f = await c.form();
   const n = (k, lo, hi, d) => Math.min(hi, Math.max(lo, toInt(f.get(k), d)));
-  await run(c.env, `UPDATE exam_levels SET title_en=?, title_bn=?, desc_en=?, desc_bn=?, question_count=?, time_limit_min=?, pass_mark=?, price=?, attempts_per_purchase=?, free_attempts_per_day=?, published=? WHERE code=?`,
+  const old = await one(c.env, "SELECT thumb_id FROM exam_levels WHERE code=?", c.params.code);
+  if (!old) throw new HttpError(404);
+  let thumb = clip(f.get("thumb_id"), 40) || null;
+  if (f.get("thumb_id_remove")) thumb = null;
+  if (!(await checkUpload(c, thumb))) return c.redirect(errBack("/admin/exams", c.L("The picture upload did not finish. Please upload it again.", "ছবির আপলোড শেষ হয়নি। আবার আপলোড করুন।")));
+  await run(c.env, `UPDATE exam_levels SET title_en=?, title_bn=?, desc_en=?, desc_bn=?, question_count=?, time_limit_min=?, pass_mark=?, price=?, attempts_per_purchase=?, free_attempts_per_day=?, published=?, certificate=?, sort=?, thumb_id=? WHERE code=?`,
     clip(f.get("title_en"), 80) || c.params.code, clip(f.get("title_bn"), 80), clip(f.get("desc_en"), 600), clip(f.get("desc_bn"), 600),
     n("question_count", 5, 100, 20), n("time_limit_min", 5, 240, 25), n("pass_mark", 1, 100, 70), n("price", 0, 1000000, 0),
-    n("attempts_per_purchase", 1, 20, 3), n("free_attempts_per_day", 1, 20, 2), f.get("published") === "0" ? 0 : 1, c.params.code);
-  return c.redirect(back("/admin/exams", "saved"));
+    n("attempts_per_purchase", 1, 20, 3), n("free_attempts_per_day", 1, 20, 2), f.get("published") === "0" ? 0 : 1, f.get("certificate") === "0" ? 0 : 1, n("sort", 0, 999, 10), thumb, c.params.code);
+  if (old.thumb_id && old.thumb_id !== thumb) await deleteFile(c.env, old.thumb_id);
+  return c.redirect(back("/admin/exams", "saved") + "#exam-" + c.params.code);
+}
+const RESERVED_CODES = ["attempt", "result", "results", "share", "new", "verify"];
+async function examCreate(c) {
+  const f = await c.form();
+  const titleEn = clip(f.get("title_en"), 80);
+  if (!titleEn) return c.redirect(errBack("/admin/exams", c.L("Enter the exam name.", "পরীক্ষার নাম লিখুন।")));
+  let code = slugify(clip(f.get("code"), 40) || titleEn).slice(0, 40);
+  if (!code || RESERVED_CODES.includes(code)) code = "exam-" + Date.now().toString(36).slice(-5);
+  if (await one(c.env, "SELECT code FROM exam_levels WHERE code=?", code)) code += "-" + Date.now().toString(36).slice(-3);
+  const sort = Number(await scalar(c.env, "SELECT COALESCE(MAX(sort),0)+1 FROM exam_levels"));
+  const price = Math.max(0, toInt(f.get("price"), 0));
+  await run(c.env, `INSERT INTO exam_levels(code,title_en,title_bn,desc_en,desc_bn,question_count,time_limit_min,pass_mark,price,attempts_per_purchase,free_attempts_per_day,published,sort,certificate)
+    VALUES (?,?,?,'','',?,?,70,?,3,2,0,?,?)`, code, titleEn, clip(f.get("title_bn"), 80), Math.min(100, Math.max(5, toInt(f.get("question_count"), 20))), 25, price, sort, f.get("certificate") === "0" ? 0 : 1);
+  return c.redirect(back("/admin/exams", "created") + "#exam-" + code);
+}
+async function examDelete(c) {
+  const lv = await one(c.env, "SELECT code, thumb_id FROM exam_levels WHERE code=?", c.params.code);
+  if (!lv) throw new HttpError(404);
+  if (Number(await scalar(c.env, "SELECT COUNT(*) FROM attempts WHERE level_code=?", lv.code))) return c.redirect(errBack("/admin/exams", c.L("This exam has been taken; hide it instead.", "এই পরীক্ষা দেওয়া হয়েছে; লুকিয়ে রাখুন।")));
+  await c.env.DB.batch([c.env.DB.prepare("DELETE FROM questions WHERE level_code=?").bind(lv.code), c.env.DB.prepare("DELETE FROM exam_levels WHERE code=?").bind(lv.code)]);
+  if (lv.thumb_id) await deleteFile(c.env, lv.thumb_id);
+  return c.redirect(back("/admin/exams", "deleted"));
 }
 
 async function questionsList(c) {
@@ -547,7 +638,7 @@ async function questionsImportPage(c, report = null) {
   const body = html`<div class="panel" style="margin-bottom:20px">
     <p>${c.L("Upload a CSV file with these columns (export the current bank to get a ready template). Rows with an id update that question; rows without an id are added. Questions can be written in Excel and saved as \"CSV UTF-8\".", "এই কলামগুলো সহ একটি CSV ফাইল আপলোড করুন (তৈরি টেমপ্লেট পেতে বর্তমান প্রশ্নব্যাংক এক্সপোর্ট করুন)। id থাকা সারি সেই প্রশ্ন আপডেট করবে; id ছাড়া সারি নতুন যোগ হবে। এক্সেলে লিখে \"CSV UTF-8\" হিসেবে সেভ করুন।")}</p>
     <p class="mono small" style="word-break:break-all">${CSV_HEAD.join(", ")}</p>
-    <p class="small muted">${c.L("level = beginner, experienced or expert · correct = 1–4 · status = published or draft · options 3 and 4 may be empty.", "level = beginner, experienced বা expert · correct = ১–৪ · status = published বা draft · ৩ ও ৪ নম্বর বিকল্প ফাঁকা থাকতে পারে।")}</p>
+    <p class="small muted">${c.L("level = the exam's short code", "level = পরীক্ষার সংক্ষিপ্ত কোড")} (${(await all(c.env, "SELECT code FROM exam_levels ORDER BY sort")).map((l) => l.code).join(", ")}) · ${c.L("correct = 1–4 · status = published or draft · options 3 and 4 may be empty.", "correct = ১–৪ · status = published বা draft · ৩ ও ৪ নম্বর বিকল্প ফাঁকা থাকতে পারে।")}</p>
     <form method="post" action="/admin/questions/import" enctype="multipart/form-data" style="margin-top:16px">${await csrfInput(c)}
       <input type="file" name="csv" accept=".csv,text/csv" required> <button class="btn btn-primary" type="submit">${icon("upload", 16)} ${c.L("Import", "ইমপোর্ট")}</button></form></div>
   ${report ? html`<div class="panel"><h3>${c.L("Result", "ফলাফল")}</h3><p>${c.L(`Added ${report.added}, updated ${report.updated}, skipped ${report.errors.length}.`, `যোগ হয়েছে ${report.added}, আপডেট ${report.updated}, বাদ ${report.errors.length}।`)}</p>
@@ -796,6 +887,194 @@ async function testEmail(c) {
   return c.redirect(r.ok ? back("/admin/settings", "mail_ok") : errBack("/admin/settings", r.error || "failed"));
 }
 
+// ------------------------------------------------------------------ courses
+async function coursesList(c) {
+  const rows = await all(c.env, "SELECT c.*, (SELECT COUNT(*) FROM entitlements e WHERE e.item_type='course' AND e.item_ref=c.slug) AS students FROM courses c ORDER BY sort, id DESC");
+  const body = html`<div class="row between" style="margin-bottom:16px"><span class="small muted">${c.L("Live classes and recorded courses. Paid courses are bought with bKash / Nagad like exams; after approval the buyer sees the lessons.", "লাইভ ক্লাস ও রেকর্ডেড কোর্স। পেইড কোর্স পরীক্ষার মতোই bKash / Nagad দিয়ে কেনা হয়; অনুমোদনের পর ক্রেতা পাঠগুলো দেখতে পান।")}</span>
+    <a class="btn btn-primary" href="/admin/courses/new">${icon("plus", 16)} ${c.L("New course", "নতুন কোর্স")}</a></div>
+  <div class="table-wrap"><table><thead><tr><th>${c.L("Course", "কোর্স")}</th><th>${c.L("Type", "ধরন")}</th><th class="num">${c.L("Price", "মূল্য")}</th><th class="num">${c.L("Students", "শিক্ষার্থী")}</th><th>${c.L("Status", "অবস্থা")}</th><th></th></tr></thead><tbody>
+  ${rows.length ? rows.map((r) => html`<tr><td><div class="row" style="gap:10px;flex-wrap:nowrap">${r.thumb_id ? html`<img src="/media/${r.thumb_id}" alt="" class="adm-thumb">` : ""}<div><strong>${c.pick(r.title_en, r.title_bn)}</strong><div class="tiny muted">/courses/${r.slug}</div></div></div></td>
+    <td class="small">${r.kind === "live" ? c.L("Live", "লাইভ") : c.L("Recorded", "রেকর্ডেড")}</td><td class="num">${r.price > 0 ? c.money(r.price) : c.L("Free", "ফ্রি")}</td><td class="num">${c.num(r.students)}</td><td>${statusTag(c, r.status)}</td>
+    <td class="num"><a class="btn btn-ghost btn-sm" href="/admin/courses/${r.id}">${c.L("Edit", "এডিট")}</a></td></tr>`)
+    : html`<tr><td colspan="6" class="muted">${c.L("No courses yet. Until one is published, the Courses page shows \"Coming soon\".", "এখনো কোনো কোর্স নেই। কোর্স প্রকাশ না হওয়া পর্যন্ত কোর্স পাতায় \"শিগগিরই আসছে\" দেখাবে।")}</td></tr>`}</tbody></table></div>`;
+  return adminLayout(c, { title: c.L("Courses", "কোর্স"), body, active: "courses" });
+}
+async function courseEdit(c) {
+  const isNew = c.params.id === "new";
+  const k = isNew ? { kind: "recorded", status: "draft", price: 0, sort: 100 } : await one(c.env, "SELECT * FROM courses WHERE id=?", toInt(c.params.id));
+  if (!k) throw new HttpError(404);
+  const videoHelp = c.L("Shown only to enrolled students (or everyone if the course is free). Put a YouTube, Vimeo or Google Drive link on its own line to show a video player; add Zoom / Meet links for live classes.",
+    "শুধু ভর্তি হওয়া শিক্ষার্থীরা দেখবেন (কোর্স ফ্রি হলে সবাই)। ভিডিও প্লেয়ার দেখাতে আলাদা লাইনে YouTube, Vimeo বা Google Drive লিংক দিন; লাইভ ক্লাসের জন্য Zoom / Meet লিংক দিন।");
+  const body = html`<form method="post" action="/admin/courses/${isNew ? "new" : k.id}" class="panel">${await csrfInput(c)}
+  <div class="form-grid">
+    ${sel("kind", c.L("Type", "ধরন"), k.kind, [["recorded", c.L("Recorded course", "রেকর্ডেড কোর্স")], ["live", c.L("Live course", "লাইভ কোর্স")]], { third: true })}
+    ${sel("status", c.L("Status", "অবস্থা"), k.status, [["draft", c.L("Draft (hidden)", "খসড়া (লুকানো)")], ["published", c.L("Published", "প্রকাশিত")]], { third: true })}
+    ${fld("price", c.L("Price in taka (0 = free)", "মূল্য টাকায় (০ = ফ্রি)"), k.price, { type: "number", third: true, attrs: 'min="0" step="1"' })}
+    ${fld("title_en", c.L("Title (English)", "শিরোনাম (ইংরেজি)"), k.title_en, { required: true })}${fld("title_bn", c.L("Title (Bengali)", "শিরোনাম (বাংলা)"), k.title_bn)}
+    ${fld("summary_en", c.L("Short description (English)", "সংক্ষিপ্ত বিবরণ (ইংরেজি)"), k.summary_en, { rows: 2 })}${fld("summary_bn", c.L("Short description (Bengali)", "সংক্ষিপ্ত বিবরণ (বাংলা)"), k.summary_bn, { rows: 2 })}
+    ${await imageField(c, "thumb_id", c.L("Thumbnail picture", "থাম্বনেইল ছবি"), k.thumb_id, c.L("Landscape picture, about 1280 × 720 px, under 1 MB.", "আড়াআড়ি ছবি, প্রায় ১২৮০ × ৭২০ পিক্সেল, ১ MB-এর কম।"))}
+    ${fld("schedule_en", c.L("Schedule (English), e.g. Fridays 8–10 pm, from 7 Nov", "সময়সূচি (ইংরেজি)"), k.schedule_en)}${fld("schedule_bn", c.L("Schedule (Bengali)", "সময়সূচি (বাংলা), যেমন প্রতি শুক্রবার রাত ৮–১০টা"), k.schedule_bn)}
+    ${fld("duration", c.L("Duration, e.g. 6 weeks · 12 lessons", "সময়কাল, যেমন ৬ সপ্তাহ · ১২টি ক্লাস"), k.duration, { third: true })}
+    ${fld("sort", c.L("Order (smaller first)", "ক্রম (ছোট সংখ্যা আগে)"), k.sort, { type: "number", third: true })}
+    <div class="field third"></div>
+    ${fld("body_en", c.L("Public description (English, Markdown) — what students will learn", "সবার জন্য বিবরণ (ইংরেজি, Markdown) — কী শিখবেন"), k.body_en, { rows: 8 })}
+    ${fld("body_bn", c.L("Public description (Bengali, Markdown)", "সবার জন্য বিবরণ (বাংলা, Markdown)"), k.body_bn, { rows: 8 })}
+    ${fld("content_en", c.L("Lessons & class links (English, Markdown)", "পাঠ ও ক্লাসের লিংক (ইংরেজি, Markdown)"), k.content_en, { rows: 10, help: videoHelp })}
+    ${fld("content_bn", c.L("Lessons & class links (Bengali, Markdown)", "পাঠ ও ক্লাসের লিংক (বাংলা, Markdown)"), k.content_bn, { rows: 10 })}
+    ${fld("slug", c.L("Web address (slug)", "ওয়েব ঠিকানা (slug)"), k.slug, { help: c.L("Leave empty to create it from the English title.", "ফাঁকা রাখলে ইংরেজি শিরোনাম থেকে তৈরি হবে।") })}
+  </div>
+  <div class="form-actions"><button class="btn btn-primary" type="submit">${c.L("Save", "সেভ করুন")}</button><a class="btn btn-ghost" href="/admin/courses">${c.L("Cancel", "বাতিল")}</a>
+    ${!isNew && k.status === "published" ? html`<a class="link small" href="/${c.lang}/courses/${k.slug}" target="_blank">${c.L("View on site", "সাইটে দেখুন")} ${icon("arrow-right", 14)}</a>` : ""}</div></form>
+  ${!isNew ? html`<form method="post" action="/admin/courses/${k.id}/delete" style="margin-top:16px" data-confirm="${c.L("Delete this course? Students lose access.", "কোর্সটি মুছবেন? শিক্ষার্থীরা আর দেখতে পাবেন না।")}">${await csrfInput(c)}<button class="btn btn-ghost btn-sm" style="color:var(--err)">${icon("trash", 15)} ${c.L("Delete course", "কোর্স মুছুন")}</button></form>` : ""}`;
+  return adminLayout(c, { title: isNew ? c.L("New course", "নতুন কোর্স") : c.pick(k.title_en, k.title_bn), body, active: "courses" });
+}
+async function courseSave(c) {
+  const f = await c.form();
+  const isNew = c.params.id === "new";
+  const old = isNew ? null : await one(c.env, "SELECT * FROM courses WHERE id=?", toInt(c.params.id));
+  if (!isNew && !old) throw new HttpError(404);
+  const titleEn = clip(f.get("title_en"), 200);
+  if (!titleEn) return c.redirect(errBack(`/admin/courses/${c.params.id}`, c.L("The English title is required.", "ইংরেজি শিরোনাম আবশ্যক।")));
+  let slug = slugify(clip(f.get("slug"), 80) || titleEn);
+  if (await one(c.env, "SELECT id FROM courses WHERE slug=? AND id<>?", slug, old ? old.id : 0)) slug += "-" + Date.now().toString(36).slice(-4);
+  let thumb = clip(f.get("thumb_id"), 40) || null;
+  if (f.get("thumb_id_remove")) thumb = null;
+  if (!(await checkUpload(c, thumb))) return c.redirect(errBack(`/admin/courses/${c.params.id}`, c.L("The picture upload did not finish. Please upload it again.", "ছবির আপলোড শেষ হয়নি। আবার আপলোড করুন।")));
+  const vals = [slug, f.get("kind") === "live" ? "live" : "recorded", titleEn, clip(f.get("title_bn"), 200), clip(f.get("summary_en"), 600), clip(f.get("summary_bn"), 600),
+    clip(f.get("body_en"), 20000), clip(f.get("body_bn"), 20000), clip(f.get("content_en"), 30000), clip(f.get("content_bn"), 30000),
+    clip(f.get("schedule_en"), 200), clip(f.get("schedule_bn"), 200), clip(f.get("duration"), 100), Math.max(0, toInt(f.get("price"))), thumb,
+    f.get("status") === "published" ? "published" : "draft", toInt(f.get("sort"), 100), nowIso()];
+  const cols = "slug,kind,title_en,title_bn,summary_en,summary_bn,body_en,body_bn,content_en,content_bn,schedule_en,schedule_bn,duration,price,thumb_id,status,sort,updated_at";
+  let id;
+  if (isNew) id = (await run(c.env, `INSERT INTO courses(${cols},created_at) VALUES (${Array(19).fill("?").join(",")})`, ...vals, nowIso())).meta.last_row_id;
+  else {
+    await run(c.env, `UPDATE courses SET ${cols.split(",").map((k) => k + "=?").join(",")} WHERE id=?`, ...vals, old.id);
+    id = old.id;
+    if (old.thumb_id && old.thumb_id !== thumb) await deleteFile(c.env, old.thumb_id);
+    if (old.slug !== slug) await run(c.env, "UPDATE entitlements SET item_ref=? WHERE item_type='course' AND item_ref=?", slug, old.slug);
+  }
+  return c.redirect(back(`/admin/courses/${id}`, "saved"));
+}
+async function courseDelete(c) {
+  const k = await one(c.env, "SELECT id, thumb_id FROM courses WHERE id=?", toInt(c.params.id));
+  if (k) { await deleteFile(c.env, k.thumb_id); await run(c.env, "DELETE FROM courses WHERE id=?", k.id); }
+  return c.redirect(back("/admin/courses", "deleted"));
+}
+
+// ------------------------------------------------------------------ reviews
+async function reviewsList(c) {
+  const status = ["pending", "published", "hidden", "all"].includes(c.url.searchParams.get("status")) ? c.url.searchParams.get("status") : "pending";
+  const rows = await all(c.env, `SELECT * FROM reviews ${status === "all" ? "" : "WHERE status=?"} ORDER BY id DESC LIMIT 200`, ...(status === "all" ? [] : [status]));
+  const csrf = await csrfInput(c);
+  const label = { pending: c.L("Waiting", "অপেক্ষমাণ"), published: c.L("On the site", "সাইটে"), hidden: c.L("Hidden", "লুকানো"), all: c.L("All", "সব") };
+  const body = html`<p class="small muted">${c.L("Visitors write reviews from the home page (a confirmed email is required). Only reviews you publish are shown — up to the 6 newest.", "দর্শকেরা হোমপেজ থেকে রিভিউ লেখেন (নিশ্চিত ইমেইল লাগে)। আপনি যেগুলো প্রকাশ করবেন শুধু সেগুলোই দেখাবে — সর্বশেষ ৬টি।")}</p>
+  <div class="chips" style="margin:14px 0 16px">${Object.keys(label).map((k) => html`<a class="chip ${status === k ? "on" : ""}" href="/admin/reviews?status=${k}">${label[k]}</a>`)}</div>
+  ${rows.length ? html`<div class="stack">${rows.map((r) => html`<div class="panel">
+    <div class="row between"><div><strong>${r.name}</strong>${r.role ? html` · <span class="small muted">${r.role}</span>` : ""} · <span class="small">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</span>
+      <div class="tiny muted">${r.email} · ${c.date(r.created_at, true)}</div></div>
+      <div class="row" style="gap:6px">
+        ${r.status !== "published" ? html`<form method="post" action="/admin/reviews/${r.id}/publish">${csrf}<button class="btn btn-primary btn-sm">${icon("check", 14)} ${c.L("Publish", "প্রকাশ")}</button></form>` : ""}
+        ${r.status !== "hidden" ? html`<form method="post" action="/admin/reviews/${r.id}/hide">${csrf}<button class="btn btn-ghost btn-sm">${c.L("Hide", "লুকান")}</button></form>` : ""}
+        <form method="post" action="/admin/reviews/${r.id}/delete" data-confirm="${c.L("Delete this review?", "রিভিউটি মুছবেন?")}">${csrf}<button class="btn btn-ghost btn-sm">${icon("trash", 14)}</button></form></div></div>
+    <p style="white-space:pre-wrap;margin:10px 0 0">${r.body}</p></div>`)}</div>` : html`<p class="empty">${c.L("Nothing here.", "এখানে কিছু নেই।")}</p>`}`;
+  return adminLayout(c, { title: c.L("Reviews", "রিভিউ"), body, active: "reviews" });
+}
+async function reviewAction(c) {
+  const id = toInt(c.params.id);
+  const a = c.params.action;
+  if (a === "delete") await run(c.env, "DELETE FROM reviews WHERE id=?", id);
+  else await run(c.env, "UPDATE reviews SET status=?, decided_at=? WHERE id=?", a === "publish" ? "published" : "hidden", nowIso(), id);
+  return c.redirect(back("/admin/reviews", a === "delete" ? "deleted" : a === "publish" ? "published" : "hidden"));
+}
+
+// ------------------------------------------------------------------ calculators (on/off + career roadmap figures)
+async function calculatorsPage(c) {
+  const s = await c.settings();
+  const off = calcOff(s);
+  let saved = null;
+  try { saved = JSON.parse(s.roadmap_json || "null"); } catch { saved = null; }
+  const d = mergeRoadmap(saved);
+  const csrf = await csrfInput(c);
+  const numIn = (name, v, attrs = "") => html`<input type="number" name="${name}" value="${v}" ${raw(attrs)} style="min-height:38px;padding:6px 10px;font-size:14px">`;
+  const body = html`<form method="post" action="/admin/calculators" class="panel">${csrf}
+    <h3>${c.L("Which calculators are shown", "কোন ক্যালকুলেটর দেখানো হবে")}</h3>
+    <p class="help">${c.L("Untick a calculator to hide it from the menu, home page and calculator list. Its page then says it is not available.", "কোনো ক্যালকুলেটরের টিক তুলে দিলে সেটি মেনু, হোমপেজ ও তালিকা থেকে লুকানো হবে। তার পাতায় \"এখন বন্ধ\" দেখাবে।")}</p>
+    <div class="stack" style="margin-top:14px">${ALL_CALCS.map((k) => html`<label class="check"><input type="checkbox" name="on" value="${k.slug}" ${off.has(k.slug) ? "" : raw("checked")}> <span><strong>${tr(k.title, c.lang)}</strong><br><span class="small muted">/calculators/${k.slug}</span></span></label>`)}</div>
+    <div class="form-section"><h3>${c.L("Menu", "মেনু")}</h3>
+      <label class="check" style="margin-top:8px"><input type="checkbox" name="nav_free_badge" value="1" ${s.nav_free_badge !== "0" ? raw("checked") : ""}> <span>${c.L("Show the blinking \"Free\" badge next to Exams", "পরীক্ষার পাশে জ্বলা-নেভা \"ফ্রি\" ব্যাজ দেখান")}</span></label></div>
+    <div class="form-section"><h3>${c.L("Career roadmap figures", "ক্যারিয়ার রোডম্যাপের সংখ্যা")}</h3>
+      <p class="help">${c.L("Typical years in each role before the next promotion and typical gross monthly salary (BDT) at a large local company. Sector factors and qualification effects adjust these. Change them to match what you see in the market.", "পরের পদোন্নতির আগে প্রতিটি পদে সাধারণত কত বছর এবং বড় স্থানীয় প্রতিষ্ঠানে সাধারণ মাসিক মোট বেতন (টাকা)। খাতের গুণক ও যোগ্যতার প্রভাব এগুলো সমন্বয় করে। বাজারে যা দেখছেন সেই অনুযায়ী বদলে নিন।")}</p>
+      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>${c.L("Role", "পদ")}</th><th>${c.L("Years before promotion", "পদোন্নতির আগে বছর")}</th><th>${c.L("Salary from (৳)", "বেতন থেকে (৳)")}</th><th>${c.L("Salary to (৳)", "বেতন পর্যন্ত (৳)")}</th></tr></thead><tbody>
+        ${d.levels.map((l) => html`<tr><td>${c.pick(l.en, l.bn)}</td><td>${numIn(`lv_${l.key}_years`, l.years, 'min="0" max="15" step="0.5"')}</td><td>${numIn(`lv_${l.key}_min`, l.min, 'min="0" step="1000"')}</td><td>${numIn(`lv_${l.key}_max`, l.max, 'min="0" step="1000"')}</td></tr>`)}
+      </tbody></table></div>
+      <div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>${c.L("Sector", "খাত")}</th><th>${c.L("Salary factor (1 = large local)", "বেতনের গুণক (১ = বড় স্থানীয়)")}</th><th>${c.L("Value of qualifications (1 = normal)", "যোগ্যতার মূল্য (১ = স্বাভাবিক)")}</th></tr></thead><tbody>
+        ${d.industries.map((x) => html`<tr><td>${c.pick(x.en, x.bn)}</td><td>${numIn(`in_${x.key}_factor`, x.factor, 'min="0.3" max="4" step="0.05"')}</td><td>${numIn(`in_${x.key}_certValue`, x.certValue, 'min="0" max="3" step="0.05"')}</td></tr>`)}
+      </tbody></table></div>
+      <div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>${c.L("Qualification", "যোগ্যতা")}</th><th>${c.L("Faster promotion (%)", "দ্রুত পদোন্নতি (%)")}</th><th>${c.L("Higher salary (%)", "বেশি বেতন (%)")}</th><th>${c.L("Months to complete", "শেষ করতে মাস")}</th></tr></thead><tbody>
+        ${d.credentials.map((x) => html`<tr><td>${c.pick(x.en, x.bn)}</td><td>${numIn(`cr_${x.key}_time`, x.time, 'min="0" max="40"')}</td><td>${numIn(`cr_${x.key}_salary`, x.salary, 'min="0" max="60"')}</td><td>${numIn(`cr_${x.key}_months`, x.months, 'min="1" max="60"')}</td></tr>`)}
+      </tbody></table></div>
+      <label class="check" style="margin-top:14px"><input type="checkbox" name="roadmap_reset" value="1"> <span class="small">${c.L("Reset all roadmap figures to the defaults", "রোডম্যাপের সব সংখ্যা আগের অবস্থায় ফেরান")}</span></label>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary btn-lg" type="submit">${c.L("Save", "সেভ করুন")}</button>
+      <a class="link small" href="/${c.lang}/calculators/career-roadmap" target="_blank">${c.L("Open the roadmap", "রোডম্যাপ খুলুন")} ${icon("arrow-right", 14)}</a></div></form>`;
+  return adminLayout(c, { title: c.L("Calculators", "ক্যালকুলেটর"), body, active: "calculators" });
+}
+async function calculatorsSave(c) {
+  const f = await c.form();
+  const on = new Set(f.getAll("on"));
+  const values = { calc_off: ALL_CALCS.filter((k) => !on.has(k.slug)).map((k) => k.slug).join(","), nav_free_badge: f.get("nav_free_badge") ? "1" : "0" };
+  if (f.get("roadmap_reset")) values.roadmap_json = "";
+  else {
+    const d = mergeRoadmap(null);
+    const num = (k, dflt) => { const v = Number(f.get(k)); return Number.isFinite(v) && f.get(k) !== "" && f.get(k) !== null ? v : dflt; };
+    values.roadmap_json = JSON.stringify({
+      levels: d.levels.map((l) => ({ key: l.key, years: num(`lv_${l.key}_years`, l.years), min: num(`lv_${l.key}_min`, l.min), max: num(`lv_${l.key}_max`, l.max) })),
+      industries: d.industries.map((x) => ({ key: x.key, factor: num(`in_${x.key}_factor`, x.factor), certValue: num(`in_${x.key}_certValue`, x.certValue) })),
+      credentials: d.credentials.map((x) => ({ key: x.key, time: num(`cr_${x.key}_time`, x.time), salary: num(`cr_${x.key}_salary`, x.salary), months: num(`cr_${x.key}_months`, x.months) })),
+    });
+  }
+  await saveSettings(c.env, values);
+  return c.redirect(back("/admin/calculators", "saved"));
+}
+
+// ------------------------------------------------------------------ about us & founder
+async function aboutPage(c) {
+  const s = await c.settings();
+  const body = html`<form method="post" action="/admin/about" class="panel">${await csrfInput(c)}
+    <div class="form-section"><h3>${c.L("Founder profile", "প্রতিষ্ঠাতার প্রোফাইল")}</h3>
+      <p class="help">${c.L("Shown at the top of the About page. It stays hidden until a name is filled in.", "পরিচিতি পাতার ওপরে দেখাবে। নাম না দেওয়া পর্যন্ত লুকানো থাকবে।")}</p>
+      <div class="form-grid">
+        ${fld("founder_name_en", c.L("Name (English)", "নাম (ইংরেজি)"), s.founder_name_en)}${fld("founder_name_bn", c.L("Name (Bengali)", "নাম (বাংলা)"), s.founder_name_bn)}
+        ${fld("founder_title_en", c.L("Title (English), e.g. Procurement professional, 15+ years", "পদবি (ইংরেজি)"), s.founder_title_en)}${fld("founder_title_bn", c.L("Title (Bengali)", "পদবি (বাংলা), যেমন প্রকিউরমেন্ট পেশাজীবী, ১৫+ বছর"), s.founder_title_bn)}
+        ${await imageField(c, "founder_photo_id", c.L("Photo", "ছবি"), s.founder_photo_id, c.L("Square photo, at least 600 × 600 px.", "বর্গাকার ছবি, কমপক্ষে ৬০০ × ৬০০ পিক্সেল।"))}
+        ${fld("founder_bio_en", c.L("Introduction (English, Markdown)", "পরিচিতি (ইংরেজি, Markdown)"), s.founder_bio_en, { rows: 6 })}${fld("founder_bio_bn", c.L("Introduction (Bengali, Markdown)", "পরিচিতি (বাংলা, Markdown)"), s.founder_bio_bn, { rows: 6 })}
+        ${fld("founder_experience_en", c.L("Professional experience (English, Markdown list)", "পেশাগত অভিজ্ঞতা (ইংরেজি, Markdown তালিকা)"), s.founder_experience_en, { rows: 8, help: c.L("One line per role, e.g. - **Head of Procurement**, Company — 2019–present", "প্রতি পদে এক লাইন, যেমন - **হেড অব প্রকিউরমেন্ট**, প্রতিষ্ঠান — ২০১৯–বর্তমান") })}
+        ${fld("founder_experience_bn", c.L("Professional experience (Bengali, Markdown list)", "পেশাগত অভিজ্ঞতা (বাংলা, Markdown তালিকা)"), s.founder_experience_bn, { rows: 8 })}
+        ${fld("founder_linkedin", c.L("LinkedIn profile link (optional)", "LinkedIn প্রোফাইল লিংক (ঐচ্ছিক)"), s.founder_linkedin, { full: true, attrs: 'placeholder="https://www.linkedin.com/in/…"' })}
+      </div></div>
+    <div class="form-section"><h3>${c.L("About us text", "আমাদের সম্পর্কে লেখা")}</h3>
+      <p class="help">${c.L("Leave empty to keep the standard text.", "ফাঁকা রাখলে আগের লেখাটিই থাকবে।")}</p>
+      <div class="form-grid">${fld("about_en", c.L("About us (English, Markdown)", "আমাদের সম্পর্কে (ইংরেজি, Markdown)"), s.about_en, { rows: 10 })}${fld("about_bn", c.L("About us (Bengali, Markdown)", "আমাদের সম্পর্কে (বাংলা, Markdown)"), s.about_bn, { rows: 10 })}</div></div>
+    <div class="form-actions"><button class="btn btn-primary btn-lg" type="submit">${c.L("Save", "সেভ করুন")}</button>
+      <a class="link small" href="/${c.lang}/about" target="_blank">${c.L("View the About page", "পরিচিতি পাতা দেখুন")} ${icon("arrow-right", 14)}</a></div></form>`;
+  return adminLayout(c, { title: c.L("About & founder", "পরিচিতি ও প্রতিষ্ঠাতা"), body, active: "about" });
+}
+async function aboutSave(c) {
+  const f = await c.form();
+  const s = await c.settings();
+  const values = {};
+  for (const k of ["about_en", "about_bn", "founder_name_en", "founder_name_bn", "founder_title_en", "founder_title_bn", "founder_bio_en", "founder_bio_bn", "founder_experience_en", "founder_experience_bn", "founder_linkedin"])
+    values[k] = clip(f.get(k), k.startsWith("about") || k.includes("bio") || k.includes("experience") ? 20000 : 300);
+  if (values.founder_linkedin && !/^https:\/\/(www\.)?linkedin\.com\//.test(values.founder_linkedin)) return c.redirect(errBack("/admin/about", c.L("The LinkedIn link must start with https://www.linkedin.com/", "LinkedIn লিংক https://www.linkedin.com/ দিয়ে শুরু হতে হবে")));
+  let photo = clip(f.get("founder_photo_id"), 40) || "";
+  if (f.get("founder_photo_id_remove")) photo = "";
+  if (!(await checkUpload(c, photo))) return c.redirect(errBack("/admin/about", c.L("The photo upload did not finish. Please upload it again.", "ছবির আপলোড শেষ হয়নি। আবার আপলোড করুন।")));
+  values.founder_photo_id = photo;
+  await saveSettings(c.env, values);
+  if (s.founder_photo_id && s.founder_photo_id !== photo) await deleteFile(c.env, s.founder_photo_id);
+  return c.redirect(back("/admin/about", "saved"));
+}
+
 // ------------------------------------------------------------------ registration
 export function registerAdmin(r) {
   // Admin pages use their own language cookie (default Bengali).
@@ -835,6 +1114,8 @@ export function registerAdmin(r) {
   r.post("/admin/glossary/:id/delete", guard(async (c) => { await run(c.env, "DELETE FROM glossary WHERE id=?", toInt(c.params.id)); return c.redirect(back("/admin/glossary", "deleted")); }, { form: true }));
   r.post("/admin/glossary/:id", guard(glossarySave, { form: true }));
   r.get("/admin/exams", guard(examsAdmin));
+  r.post("/admin/exams-new", guard(examCreate, { form: true }));
+  r.post("/admin/exams/:code/delete", guard(examDelete, { form: true }));
   r.post("/admin/exams/:code", guard(examSave, { form: true }));
   r.get("/admin/questions", guard(questionsList));
   r.get("/admin/questions/export", guard(questionsExport));
@@ -852,6 +1133,16 @@ export function registerAdmin(r) {
   r.post("/admin/certificates/:code/:action(revoke|reinstate)", guard(certificateAction, { form: true }));
   r.get("/admin/messages", guard(messagesList));
   r.post("/admin/messages/:id/:action(read|delete)", guard(messageAction, { form: true }));
+  r.get("/admin/courses", guard(coursesList));
+  r.get("/admin/courses/:id", guard(courseEdit));
+  r.post("/admin/courses/:id/delete", guard(courseDelete, { form: true }));
+  r.post("/admin/courses/:id", guard(courseSave, { form: true }));
+  r.get("/admin/reviews", guard(reviewsList));
+  r.post("/admin/reviews/:id/:action(publish|hide|delete)", guard(reviewAction, { form: true }));
+  r.get("/admin/calculators", guard(calculatorsPage));
+  r.post("/admin/calculators", guard(calculatorsSave, { form: true }));
+  r.get("/admin/about", guard(aboutPage));
+  r.post("/admin/about", guard(aboutSave, { form: true }));
   r.get("/admin/settings", guard(settingsPage));
   r.post("/admin/settings/test-email", guard(testEmail, { form: true }));
   r.post("/admin/settings", guard(settingsSave, { form: true }));

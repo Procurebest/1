@@ -150,16 +150,33 @@
     const items = dir.querySelectorAll("[data-search]");
     const empty = dir.querySelector("[data-dir-empty]");
     let cat = (dir.querySelector("[data-dir-cat].on") || {}).dataset ? (dir.querySelector("[data-dir-cat].on") || { dataset: {} }).dataset.dirCat || "" : "";
+    const norm = (t) => String(t || "").toLowerCase().normalize("NFC").replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d)).replace(/\s+/g, " ").trim();
+    const baseText = empty ? empty.textContent : "";
+    let clearBtn = null;
+    if (empty && input) {
+      clearBtn = document.createElement("button");
+      clearBtn.type = "button"; clearBtn.className = "btn btn-ghost btn-sm"; clearBtn.style.marginTop = "14px";
+      clearBtn.textContent = T("Clear search", "খোঁজা মুছুন");
+      clearBtn.addEventListener("click", () => { input.value = ""; cat = ""; chips.forEach((c) => c.classList.toggle("on", !c.dataset.dirCat)); apply(); input.focus(); });
+    }
     const apply = () => {
-      const q = (input ? input.value : "").trim().toLowerCase();
+      const words = norm(input ? input.value : "").split(" ").filter(Boolean);
       let shown = 0;
       items.forEach((el) => {
-        const ok = (!q || el.dataset.search.includes(q)) && (!cat || el.dataset.cat === cat);
+        const hay = norm(el.dataset.search);
+        const ok = words.every((w) => hay.includes(w)) && (!cat || el.dataset.cat === cat);
         el.hidden = !ok;
         if (ok) shown++;
       });
       dir.querySelectorAll("[data-letter-group]").forEach((g) => { g.hidden = !g.querySelector("[data-search]:not([hidden])"); });
-      if (empty) empty.hidden = shown !== 0;
+      if (empty) {
+        empty.hidden = shown !== 0;
+        if (shown === 0) {
+          const q = input ? input.value.trim() : "";
+          empty.textContent = q ? `${baseText} (“${q}”)` : baseText;
+          if (clearBtn) { empty.appendChild(document.createElement("br")); empty.appendChild(clearBtn); }
+        }
+      }
     };
     if (input) input.addEventListener("input", apply);
     chips.forEach((chip) => chip.addEventListener("click", (e) => {
@@ -256,6 +273,27 @@
     e.preventDefault();
     await post("/api/forget-email", {});
     location.reload();
+  });
+
+  // Show / hide a section (e.g. the review form)
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-toggle-target]");
+    if (!b) return;
+    const el = document.getElementById(b.dataset.toggleTarget);
+    if (!el) return;
+    el.hidden = !el.hidden;
+    if (!el.hidden) { const f = el.querySelector("input, textarea"); if (f) f.focus(); }
+  });
+
+  // Share: native share sheet on phones, otherwise copy the link
+  document.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-share-copy]");
+    if (!b) return;
+    const box = b.closest("[data-share]");
+    const url = box.dataset.url, text = box.dataset.text;
+    if (navigator.share && matchMedia("(pointer: coarse)").matches) { try { await navigator.share({ title: text, text, url }); return; } catch (x) { /* cancelled */ } }
+    try { await navigator.clipboard.writeText(url); } catch (x) { window.prompt("", url); return; }
+    const old = b.textContent; b.textContent = "✓ " + (b.dataset.done || ""); setTimeout(() => { b.textContent = old; }, 2200);
   });
 
   // Print buttons and confirmation prompts

@@ -141,7 +141,10 @@ export async function finalize(env, att, auto = false) {
   const now = nowIso();
   const res = await run(env, `UPDATE attempts SET submitted_at=?, auto_submitted=?, correct_count=?, total_count=?, score_pct=?, passed=?, topics_json=?
       WHERE id=? AND submitted_at IS NULL`, now, auto ? 1 : 0, correct, total, pct, passed, JSON.stringify(topics), fresh.id);
-  if (passed && res.meta && res.meta.changes) await issueCertificate(env, { ...fresh, score_pct: pct, submitted_at: now });
+  if (passed && res.meta && res.meta.changes) {
+    const lv = await one(env, "SELECT certificate FROM exam_levels WHERE code=?", fresh.level_code);
+    if (!lv || lv.certificate) await issueCertificate(env, { ...fresh, score_pct: pct, submitted_at: now });
+  }
   return one(env, "SELECT * FROM attempts WHERE id=?", fresh.id);
 }
 

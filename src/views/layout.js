@@ -2,18 +2,31 @@
 import { html, raw, jsonScript } from "../lib/util.js";
 import { icon } from "./icons.js";
 import { whatsapp } from "../lib/settings.js";
+import { calcList } from "../lib/calclist.js";
+import { tr } from "../../public/js/calc/defs.js";
+import { all } from "../lib/db.js";
 
-export const ASSET_V = "3";
+export const ASSET_V = "4";
 const asset = (p) => `${p}?v=${ASSET_V}`;
+export const LIB_TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
 
-const NAV = [
-  ["/calculators", "nav.calculators"],
-  ["/exams", "nav.exams"],
-  ["/library", "nav.library"],
-  ["/blog", "nav.blog"],
-  ["/glossary", "nav.glossary"],
-  ["/career", "nav.career"],
-];
+// Menu: every top item may have a drop-down list of sub-links.
+async function navItems(c, s) {
+  let exams = [];
+  try { exams = await all(c.env, "SELECT code, title_en, title_bn, price FROM exam_levels WHERE published=1 ORDER BY sort"); } catch { exams = []; }
+  const calcs = calcList(s);
+  return [
+    { href: "/calculators", label: c.t("nav.calculators"), sub: [...calcs.map((k) => [`/calculators/${k.slug}`, tr(k.title, c.lang)]), ["/calculators", c.t("nav.all_calculators")]] },
+    { href: "/exams", label: c.t("nav.exams"), free: s.nav_free_badge !== "0" && exams.some((e) => !e.price),
+      sub: [...exams.map((e) => [`/exams/${e.code}`, c.pick(e.title_en, e.title_bn), e.price ? "" : c.t("nav.free")]), ["/certificates/verify", c.t("footer.verify_cert")]] },
+    { href: "/library", label: c.t("nav.library"), sub: [...LIB_TYPES.map((t) => [`/library?type=${t}`, c.t("lib.type." + t)]), ["/library", c.t("nav.all_library")]] },
+    { href: "/courses", label: c.t("nav.courses"), sub: [["/courses?kind=live", c.t("courses.live")], ["/courses?kind=recorded", c.t("courses.recorded")]] },
+    { href: "/negotiation-guru", label: c.t("nav.negotiation") },
+    { href: "/procurement-ai", label: c.t("nav.ai") },
+    { href: "/blog", label: c.t("nav.blog"), sub: [["/blog", c.t("nav.articles")], ["/career", c.t("nav.career")], ["/glossary", c.t("nav.glossary")]] },
+    { href: "/about", label: c.t("nav.about"), sub: [["/about", c.t("nav.about_us")], ["/about#founder", c.t("nav.founder")], ["/contact", c.t("footer.contact")], ["/help", c.t("footer.help")]] },
+  ];
+}
 
 function langSwitchUrl(c, lang) {
   const parts = c.url.pathname.split("/");
@@ -22,7 +35,7 @@ function langSwitchUrl(c, lang) {
   return parts.join("/") + (c.url.search || "");
 }
 
-export async function layout(c, { title, description, body, pageType = "page", noindex = false, scripts = [], head = "", alternates = true, gate = false }) {
+export async function layout(c, { title, description, body, pageType = "page", noindex = false, scripts = [], head = "", alternates = true, gate = false, ogImage = "" }) {
   const s = await c.settings();
   const v = await c.visitor();
   const lang = c.lang;
@@ -31,11 +44,13 @@ export async function layout(c, { title, description, body, pageType = "page", n
   const here = c.url.pathname;
   const enUrl = c.siteUrl + langSwitchUrl(c, "en").split("?")[0];
   const bnUrl = c.siteUrl + langSwitchUrl(c, "bn").split("?")[0];
-  const navLink = ([p, key]) => {
-    const href = c.p(p);
-    const on = here === href || here.startsWith(href + "/");
-    return html`<li><a href="${href}" ${on ? raw('aria-current="page"') : ""}>${c.t(key)}</a></li>`;
-  };
+  const nav = await navItems(c, s);
+  const isOn = (item) => { const href = c.p(item.href); return here === href || here.startsWith(href + "/") || (item.sub || []).some(([p]) => !p.includes("?") && !p.includes("#") && here.startsWith(c.p(p))); };
+  const freeBadge = html`<span class="free-blink">${c.t("nav.free")}</span>`;
+  const navLink = (item, i) => html`<li class="${item.sub ? "has-sub" : ""}">
+    <a href="${c.p(item.href)}" ${isOn(item) ? raw('aria-current="page"') : ""} ${item.sub ? raw(`aria-haspopup="true" aria-controls="sub-${i}"`) : ""}>${item.label}${item.free ? html` ${freeBadge}` : ""}${item.sub ? html`<svg class="caret" width="9" height="6" viewBox="0 0 9 6" aria-hidden="true"><path d="M1 1l3.5 3.5L8 1" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>` : ""}</a>
+    ${item.sub ? html`<div class="sub" id="sub-${i}"><ul>${item.sub.map(([p, l, badge]) => html`<li><a href="${c.p(p)}">${l}${badge ? html` <span class="tag ok">${badge}</span>` : ""}</a></li>`)}</ul></div>` : ""}
+  </li>`;
   const wa = whatsapp(s, lang);
   const gateCfg = { lang, email: v ? v.email : null, verified: v ? v.verified : false, closedNote: c.t("gate.closed_note") };
   return html`<html lang="${lang}">
@@ -54,15 +69,15 @@ export async function layout(c, { title, description, body, pageType = "page", n
   <meta property="og:description" content="${desc}">
   <meta property="og:type" content="${pageType === "article" ? "article" : "website"}">
   <meta property="og:locale" content="${lang === "bn" ? "bn_BD" : "en_US"}">
-  <meta property="og:image" content="${c.siteUrl}/img/og-image.png">
+  <meta property="og:image" content="${ogImage || c.siteUrl + "/img/og-image.png"}">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#f8f8f8">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="${asset("/css/app.css")}">
   ${pageType === "home" ? html`<script type="application/ld+json">${jsonScript({ "@context": "https://schema.org", "@type": "WebSite", name: "ProcureBest", url: c.siteUrl, inLanguage: lang })}</script>` : ""}
   ${head}
@@ -71,8 +86,8 @@ export async function layout(c, { title, description, body, pageType = "page", n
 <a class="skip" href="#main">${c.t("nav.skip")}</a>
 <header class="nav" role="banner">
   <div class="wrap">
-    <a class="brand" href="${c.p("/")}" aria-label="ProcureBest — ${c.t("nav.home")}"><img src="/img/logo.svg" alt="ProcureBest" width="138" height="24"></a>
-    <ul class="nav-links">${NAV.map(navLink)}</ul>
+    <a class="brand" href="${c.p("/")}" aria-label="ProcureBest — ${c.t("nav.home")}"><img src="/img/logo.svg" alt="ProcureBest" width="172" height="30"></a>
+    <ul class="nav-links">${nav.map(navLink)}</ul>
     <div class="nav-tools">
       <div class="lang-switch" role="group" aria-label="${c.t("nav.language")}">
         <a href="${langSwitchUrl(c, "en")}" class="${lang === "en" ? "on" : ""}" hreflang="en" lang="en">EN</a>
@@ -85,7 +100,8 @@ export async function layout(c, { title, description, body, pageType = "page", n
 </header>
 <nav class="mobile-menu" id="mobile-menu" aria-label="${c.t("nav.menu")}">
   <a href="${c.p("/")}">${c.t("nav.home")}</a>
-  ${NAV.map(([p, key]) => html`<a href="${c.p(p)}">${c.t(key)}</a>`)}
+  ${nav.map((item) => item.sub ? html`<details class="m-group"><summary>${item.label}${item.free ? html` ${freeBadge}` : ""}</summary>
+    <div>${item.sub.map(([p, l]) => html`<a href="${c.p(p)}">${l}</a>`)}</div></details>` : html`<a href="${c.p(item.href)}">${item.label}</a>`)}
   <a href="${c.p("/my")}">${c.t("nav.my")}</a>
   <div class="lang-switch" role="group" aria-label="${c.t("nav.language")}">
     <a href="${langSwitchUrl(c, "en")}" class="${lang === "en" ? "on" : ""}" lang="en">English</a>
@@ -101,17 +117,16 @@ ${body}
   <div class="wrap">
     <div class="cols">
       <div>
-        <img src="/img/logo.svg" alt="ProcureBest" width="138" height="24" style="height:24px;width:auto">
+        <img src="/img/logo.svg" alt="ProcureBest" width="172" height="30" style="height:30px;width:auto">
         <p style="margin-top:14px;max-width:340px">${s["tagline_" + lang]} ${c.t("footer.about_line")}</p>
         ${wa.enabled && wa.configured ? html`<a class="btn wa-btn btn-sm" style="margin-top:6px" href="${wa.url}" target="_blank" rel="noopener noreferrer"><span style="color:#25d366;display:inline-flex">${icon("chat", 16)}</span> ${wa.label}</a>` : ""}
       </div>
       <div>
         <h4>${c.t("footer.tools")}</h4>
         <ul>
-          <li><a href="${c.p("/calculators/total-cost-of-ownership")}">${c.L("TCO calculator", "টিসিও ক্যালকুলেটর")}</a></li>
-          <li><a href="${c.p("/calculators/shipping-import-cost")}">${c.L("Shipping & import cost", "শিপিং ও আমদানি খরচ")}</a></li>
-          <li><a href="${c.p("/calculators/comparative-statement")}">${c.L("Comparative statement", "তুলনামূলক বিবরণী (CS)")}</a></li>
+          ${calcList(s).map((k) => html`<li><a href="${c.p("/calculators/" + k.slug)}">${tr(k.title, lang)}</a></li>`)}
           <li><a href="${c.p("/library")}">${c.t("nav.library")}</a></li>
+          <li><a href="${c.p("/courses")}">${c.t("nav.courses")}</a></li>
         </ul>
       </div>
       <div>
@@ -120,6 +135,8 @@ ${body}
           <li><a href="${c.p("/exams")}">${c.t("nav.exams")}</a></li>
           <li><a href="${c.p("/certificates/verify")}">${c.t("footer.verify_cert")}</a></li>
           <li><a href="${c.p("/blog")}">${c.t("nav.blog")}</a></li>
+          <li><a href="${c.p("/negotiation-guru")}">${c.t("nav.negotiation")}</a></li>
+          <li><a href="${c.p("/procurement-ai")}">${c.t("nav.ai")}</a></li>
           <li><a href="${c.p("/glossary")}">${c.t("nav.glossary")}</a></li>
           <li><a href="${c.p("/career")}">${c.t("nav.career")}</a></li>
         </ul>
@@ -127,15 +144,19 @@ ${body}
       <div>
         <h4>${c.t("footer.company")}</h4>
         <ul>
-          <li><a href="${c.p("/about")}">${c.t("nav.about")}</a></li>
+          <li><a href="${c.p("/about")}">${c.t("nav.about_us")}</a></li>
+          <li><a href="${c.p("/about#founder")}">${c.t("nav.founder")}</a></li>
           <li><a href="${c.p("/contact")}">${c.t("footer.contact")}</a></li>
           <li><a href="${c.p("/help")}">${c.t("footer.help")}</a></li>
-          <li><a href="${c.p("/privacy")}">${c.t("footer.privacy")}</a></li>
-          <li><a href="${c.p("/terms")}">${c.t("footer.terms")}</a></li>
-          <li><a href="${c.p("/disclaimer")}">${c.t("footer.disclaimer")}</a></li>
         </ul>
       </div>
     </div>
+    <nav class="policy-links" aria-label="${c.L("Policies", "নীতিমালা")}">
+      <a href="${c.p("/privacy")}">${c.t("footer.privacy")}</a>
+      <a href="${c.p("/terms")}">${c.t("footer.terms")}</a>
+      <a href="${c.p("/certificate-policy")}">${c.t("footer.cert_policy")}</a>
+      <a href="${c.p("/disclaimer")}">${c.t("footer.disclaimer")}</a>
+    </nav>
     <div class="legal">
       <span>${c.t("footer.copyright", { year: c.d(new Date().getUTCFullYear()) })}</span>
       <span>${c.t("footer.estimate_note")}</span>

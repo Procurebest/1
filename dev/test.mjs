@@ -15,7 +15,7 @@ function client(env) {
     if (jar.size) h.set("Cookie", [...jar].map(([k, v]) => `${k}=${v}`).join("; "));
     let b = body;
     if (json !== undefined) { h.set("Content-Type", "application/json"); h.set("X-PB", "1"); b = JSON.stringify(json); }
-    if (form) { b = new URLSearchParams(form); }
+    if (form) { b = new URLSearchParams(); for (const [k, v] of Object.entries(form)) for (const x of [].concat(v)) b.append(k, x); }
     const before = env.DB.queries;
     const res = await handle(env, new Request(BASE + path, { method, headers: h, body: b, redirect: "manual" }));
     const used = env.DB.queries - before;
@@ -152,7 +152,7 @@ console.log("\nCollect-only mode (no email service) + KV storage");
     assert.equal(r.status, 403);
   });
   await test("order validation (TrxID, sender, duplicates)", async () => {
-    const base = { item_type: "file", item_ref: "procurement-kpi-dashboard", method: "bkash", name: "Rahim Uddin", lang: "en" };
+    const base = { item_type: "file", item_ref: "procurement-kpi-dashboard", method: "bkash", name: "Rahim Uddin", email: "rahim@example.com", lang: "en" };
     assert.equal((await visitor.req("POST", "/api/orders", { json: { ...base, sender: "01712345678", trx: "x" } })).status, 400);
     assert.equal((await visitor.req("POST", "/api/orders", { json: { ...base, sender: "123", trx: "9JK7XQ2ABC" } })).status, 400);
     assert.equal((await visitor.req("POST", "/api/orders", { json: { ...base, method: "nagad", sender: "01712345678", trx: "9JK7XQ2ABC" } })).status, 400);
@@ -165,7 +165,7 @@ console.log("\nCollect-only mode (no email service) + KV storage");
     assert.equal(done.status, 200);
     // another visitor cannot reuse the same transaction ID
     await other.req("POST", "/api/verify/start", { json: { email: "karim@example.com", consent: true } });
-    const dup = await other.req("POST", "/api/orders", { json: { ...base, sender: "01812345678", trx: "9JK7XQ2ABC" } });
+    const dup = await other.req("POST", "/api/orders", { json: { ...base, email: "karim@example.com", sender: "01812345678", trx: "9JK7XQ2ABC" } });
     assert.equal(dup.status, 409);
   });
   await test("admin approves the order and the buyer can download", async () => {
@@ -216,13 +216,28 @@ console.log("\nCollect-only mode (no email service) + KV storage");
     assert.equal(a.status, 404);
   });
   let certCode;
-  await test("scoring is done on the server; a pass issues a certificate", async () => {
+  await test("Knowledge Check: scored on the server, no certificate, shareable result", async () => {
     await answerAll(visitor, attemptId, true);
     const s = await visitor.req("POST", `/api/exams/attempt/${attemptId}/submit`, { json: { lang: "en" } });
     assert.equal(s.status, 200);
     const res = await visitor.req("GET", `/en/exams/result/${attemptId}`);
     assert.match(res.text, /Passed/);
-    const cert = await env.DB.prepare("SELECT * FROM certificates WHERE attempt_id=?").bind(attemptId).first();
+    assert.match(res.text, /does not issue a certificate/);
+    assert.match(res.text, new RegExp(`/en/results/${attemptId}`));
+    assert.equal(await env.DB.prepare("SELECT code FROM certificates WHERE attempt_id=?").bind(attemptId).first(), null);
+    const pub = await other.req("GET", `/en/results/${attemptId}`);
+    assert.equal(pub.status, 200);
+    assert.match(pub.text, /Rahim Uddin scored 100%/);
+    assert.doesNotMatch(pub.text, /rahim@example.com/);
+  });
+  await test("Professional exam: a pass issues a certificate", async () => {
+    const st = await visitor.req("POST", "/api/exams/experienced/start", { json: { name: "Rahim Uddin", lang: "en" } });
+    assert.equal(st.status, 200, JSON.stringify(st.data));
+    const pid = st.data.redirect.split("/").pop();
+    await answerAll(visitor, pid, true);
+    const s = await visitor.req("POST", `/api/exams/attempt/${pid}/submit`, { json: { lang: "en" } });
+    assert.equal(s.status, 200);
+    const cert = await env.DB.prepare("SELECT * FROM certificates WHERE attempt_id=?").bind(pid).first();
     assert.ok(cert && /^PB-\d{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(cert.code));
     certCode = cert.code;
     assert.equal(cert.name, "Rahim Uddin");
@@ -258,7 +273,7 @@ console.log("\nCollect-only mode (no email service) + KV storage");
     const no = await visitor.req("POST", "/api/exams/expert/start", { json: { name: "Rahim Uddin", lang: "en" } });
     assert.equal(no.status, 400);
     assert.equal(no.data.buy, "/en/buy/exam/expert");
-    const o = await visitor.req("POST", "/api/orders", { json: { item_type: "exam", item_ref: "expert", method: "bkash", sender: "01712345678", trx: "EXAM777777", name: "Rahim Uddin", lang: "bn" } });
+    const o = await visitor.req("POST", "/api/orders", { json: { item_type: "exam", item_ref: "expert", method: "bkash", sender: "01712345678", trx: "EXAM777777", name: "Rahim Uddin", email: "rahim@example.com", lang: "bn" } });
     assert.equal(o.status, 200, JSON.stringify(o.data));
     const list = await admin.req("GET", "/admin/orders");
     const row = await env.DB.prepare("SELECT id FROM orders WHERE trx_id='EXAM777777'").first();
@@ -447,7 +462,7 @@ console.log("\nEmail verification mode (email service configured) + D1 file stor
     const stranger = client(env);
     await stranger.req("POST", "/api/orders", { json: { item_type: "file", item_ref: "procurement-kpi-dashboard", method: "bkash", sender: "01912345678", trx: "ABC12345", name: "X", lang: "en" } });
     const list = await admin.req("GET", "/admin/orders");
-    assert.match(list.text, /waiting for email confirmation/);
+    assert.match(list.text, /ABC12345/);
   });
   await test("D1 file storage serves a template", async () => {
     const r = await visitor.req("POST", "/api/library/tco-comparison-template/link", { json: { lang: "en" } });
@@ -463,7 +478,7 @@ console.log("\nEmail verification mode (email service configured) + D1 file stor
     assert.equal(r.status, 400);
   });
   await test("new orders notify the site owner; approval emails the buyer", async () => {
-    const o = await visitor.req("POST", "/api/orders", { json: { item_type: "file", item_ref: "procurement-kpi-dashboard", method: "bkash", sender: "01912345678", trx: "ZX81QWERTY", name: "Nasrin", lang: "bn" } });
+    const o = await visitor.req("POST", "/api/orders", { json: { item_type: "file", item_ref: "procurement-kpi-dashboard", method: "bkash", sender: "01912345678", trx: "ZX81QWERTY", name: "Nasrin", email: "nasrin@example.com", lang: "bn" } });
     assert.equal(o.status, 200, JSON.stringify(o.data));
     assert.ok(outbox.find((m) => m.to === "owner@procurebest.test" && /ZX81QWERTY|new order/i.test(m.text + m.subject)));
     const list = await admin.req("GET", "/admin/orders");
@@ -474,11 +489,122 @@ console.log("\nEmail verification mode (email service configured) + D1 file stor
     assert.ok(mail, "Bengali approval email");
   });
   await test("rejecting an order emails the reason", async () => {
-    const o = await visitor.req("POST", "/api/orders", { json: { item_type: "exam", item_ref: "expert", method: "bkash", sender: "01912345678", trx: "WRONG12345", name: "Nasrin", lang: "en" } });
+    const o = await visitor.req("POST", "/api/orders", { json: { item_type: "exam", item_ref: "expert", method: "bkash", sender: "01912345678", trx: "WRONG12345", name: "Nasrin", email: "nasrin@example.com", lang: "en" } });
     const list = await admin.req("GET", "/admin/orders");
     const row = await env.DB.prepare("SELECT id FROM orders WHERE trx_id='WRONG12345'").first();
     await admin.req("POST", `/admin/orders/${row.id}/reject`, { form: { _csrf: formCsrf(list.text), note: "No payment with this TrxID" } });
     assert.ok(outbox.find((m) => m.to === "nasrin@example.com" && /No payment with this TrxID/.test(m.text)));
+  });
+  await test("a buyer orders without any confirmation email; the approval link opens the purchase", async () => {
+    const buyer = client(env);
+    const before = outbox.length;
+    const o = await buyer.req("POST", "/api/orders", { json: { item_type: "exam", item_ref: "expert", method: "bkash", sender: "01612345678", trx: "SIMPLE1234", name: "Selim Reza", email: "Selim@Example.com", lang: "bn" } });
+    assert.equal(o.status, 200, JSON.stringify(o.data));
+    assert.ok(!outbox.slice(before).some((m) => m.to === "selim@example.com"), "no confirmation email before approval");
+    const done = await buyer.req("GET", o.data.redirect);
+    assert.equal(done.status, 200);
+    const list = await admin.req("GET", "/admin/orders");
+    assert.match(list.text, /SIMPLE1234/);
+    const row = await env.DB.prepare("SELECT id FROM orders WHERE trx_id='SIMPLE1234'").first();
+    await admin.req("POST", `/admin/orders/${row.id}/approve`, { form: { _csrf: formCsrf(list.text) } });
+    const mail = outbox.find((m) => m.to === "selim@example.com");
+    const link = (mail.html.match(/href="([^"]*\/access\/[^"]+)"/) || [])[1];
+    assert.ok(link, "approval email carries an access link");
+    const phone = client(env);
+    const r = await phone.req("GET", new URL(link.replace(/&amp;/g, "&")).pathname);
+    assert.equal(r.status, 303);
+    assert.equal(r.location, "/bn/exams/expert");
+    const me = await phone.req("GET", "/api/me");
+    assert.equal(me.data.ok, true);
+    assert.equal(me.data.email, "selim@example.com");
+    const s = await phone.req("POST", "/api/exams/expert/start", { json: { name: "Selim Reza", lang: "bn" } });
+    assert.ok(!s.data.buy && s.status !== 401 && !s.data.need_email, "paid access granted: " + JSON.stringify(s.data));
+    const bad = await client(env).req("GET", "/bn/access/forged.token");
+    assert.equal(bad.status, 410);
+  });
+  await test("new pages load in both languages", async () => {
+    const pub = client(env);
+    for (const p of ["/en/courses", "/bn/courses", "/en/negotiation-guru", "/bn/procurement-ai", "/en/calculators/career-roadmap", "/bn/calculators/career-roadmap",
+      "/en/certificate-policy", "/bn/certificate-policy", "/en/about", "/bn/", "/en/", "/en/library?type=pdf"]) {
+      const r = await pub.req("GET", p);
+      assert.equal(r.status, 200, p);
+    }
+    const home = await pub.req("GET", "/en/");
+    assert.match(home.text, /class="free-blink"/);
+    assert.match(home.text, /Negotiation Guru/);
+    assert.match(home.text, /href="\/en\/certificate-policy"/);
+    const rm = await pub.req("GET", "/en/calculators/career-roadmap");
+    assert.match(rm.text, /id="roadmap-data"/);
+    for (const p of ["/admin/courses", "/admin/courses/new", "/admin/reviews", "/admin/calculators", "/admin/about", "/admin/posts?section=ai", "/admin/posts/new?section=negotiation", "/admin/exams"]) {
+      const r = await admin.req("GET", p);
+      assert.equal(r.status, 200, p);
+    }
+  });
+  await test("admin can switch a calculator off", async () => {
+    const pg = await admin.req("GET", "/admin/calculators");
+    const r = await admin.req("POST", "/admin/calculators", { form: { _csrf: formCsrf(pg.text), on: ["total-cost-of-ownership", "comparative-statement", "career-roadmap"], nav_free_badge: "1" } });
+    assert.equal(r.status, 303);
+    const off = await client(env).req("GET", "/en/calculators/shipping-import-cost");
+    assert.equal(off.status, 404);
+    const dir = await client(env).req("GET", "/en/calculators");
+    assert.doesNotMatch(dir.text, /calculators\/shipping-import-cost/);
+    await admin.req("POST", "/admin/calculators", { form: { _csrf: formCsrf(pg.text), on: ["total-cost-of-ownership", "shipping-import-cost", "comparative-statement", "career-roadmap"], nav_free_badge: "1" } });
+    assert.equal((await client(env).req("GET", "/en/calculators/shipping-import-cost")).status, 200);
+  });
+  await test("paid course: order, approval link, lessons unlocked", async () => {
+    const pg = await admin.req("GET", "/admin/courses/new");
+    const r = await admin.req("POST", "/admin/courses/new", { form: { _csrf: formCsrf(pg.text), kind: "recorded", status: "published", price: "800", title_en: "Negotiation Masterclass", title_bn: "নেগোসিয়েশন মাস্টারক্লাস",
+      summary_en: "Six recorded lessons.", body_en: "## You will learn\n- Preparing", content_en: "Lesson 1\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\n\nSECRET-LESSON-TEXT", sort: "1" } });
+    assert.equal(r.status, 303);
+    const list = await client(env).req("GET", "/en/courses");
+    assert.match(list.text, /Negotiation Masterclass/);
+    const buyer = client(env);
+    const page = await buyer.req("GET", "/en/courses/negotiation-masterclass");
+    assert.equal(page.status, 200);
+    assert.doesNotMatch(page.text, /SECRET-LESSON-TEXT/);
+    const o = await buyer.req("POST", "/api/orders", { json: { item_type: "course", item_ref: "negotiation-masterclass", method: "bkash", sender: "01512345678", trx: "COURSE1234", name: "Mitu", email: "mitu@example.com", lang: "en" } });
+    assert.equal(o.status, 200, JSON.stringify(o.data));
+    const ol = await admin.req("GET", "/admin/orders");
+    const row = await env.DB.prepare("SELECT id FROM orders WHERE trx_id='COURSE1234'").first();
+    await admin.req("POST", `/admin/orders/${row.id}/approve`, { form: { _csrf: formCsrf(ol.text) } });
+    const mail = outbox.find((m) => m.to === "mitu@example.com");
+    const link = (mail.html.match(/href="([^"]*\/access\/[^"]+)"/) || [])[1];
+    const go = await buyer.req("GET", new URL(link.replace(/&amp;/g, "&")).pathname);
+    assert.equal(go.location, "/en/courses/negotiation-masterclass");
+    const open = await buyer.req("GET", "/en/courses/negotiation-masterclass");
+    assert.match(open.text, /SECRET-LESSON-TEXT/);
+    assert.match(open.text, /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
+  });
+  await test("reviews appear only after the admin publishes them", async () => {
+    const r = await visitor.req("POST", "/api/reviews", { json: { name: "Nasrin Akter", role: "Procurement Executive", rating: 4, body: "The CS calculator saved me an hour every week. Thank you!", lang: "en" } });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    assert.doesNotMatch((await client(env).req("GET", "/en/")).text, /saved me an hour/);
+    const pg = await admin.req("GET", "/admin/reviews");
+    const row = await env.DB.prepare("SELECT id FROM reviews WHERE name='Nasrin Akter'").first();
+    await admin.req("POST", `/admin/reviews/${row.id}/publish`, { form: { _csrf: formCsrf(pg.text) } });
+    assert.match((await client(env).req("GET", "/en/")).text, /saved me an hour/);
+    const short = await visitor.req("POST", "/api/reviews", { json: { name: "N", body: "ok", lang: "en" } });
+    assert.equal(short.status, 400);
+  });
+  await test("admin creates a hidden exam and can delete it", async () => {
+    const pg = await admin.req("GET", "/admin/exams");
+    const r = await admin.req("POST", "/admin/exams-new", { form: { _csrf: formCsrf(pg.text), title_en: "Negotiation Skills", title_bn: "দর-কষাকষি দক্ষতা", code: "", price: "0", certificate: "1", question_count: "10" } });
+    assert.equal(r.status, 303);
+    const lv = await env.DB.prepare("SELECT * FROM exam_levels WHERE code='negotiation-skills'").first();
+    assert.ok(lv && lv.published === 0 && lv.question_count === 10);
+    assert.equal((await client(env).req("GET", "/en/exams/negotiation-skills")).status, 404);
+    const d = await admin.req("POST", "/admin/exams/negotiation-skills/delete", { form: { _csrf: formCsrf(pg.text) } });
+    assert.equal(d.status, 303);
+    assert.equal(await env.DB.prepare("SELECT code FROM exam_levels WHERE code='negotiation-skills'").first(), null);
+  });
+  await test("posts in the new sections get their own address and a cover picture", async () => {
+    const pg = await admin.req("GET", "/admin/posts/new?section=ai");
+    const r = await admin.req("POST", "/admin/posts/new", { form: { _csrf: formCsrf(pg.text), section: "ai", title_en: "Prompts for buyers", body_en: "Text ![chart](/media/x)", status: "published", published_at: "2026-10-01" } });
+    assert.equal(r.status, 303);
+    const p = await client(env).req("GET", "/en/procurement-ai/prompts-for-buyers");
+    assert.equal(p.status, 200);
+    assert.match(p.text, /<img src="\/media\/x"/);
+    assert.match((await client(env).req("GET", "/en/procurement-ai")).text, /Prompts for buyers/);
   });
 }
 

@@ -32,6 +32,25 @@ export const DEFAULTS = {
   notify_email: "",
   free_exam_note_en: "",
   free_exam_note_bn: "",
+  // Calculators switched off by the admin (comma-separated slugs)
+  calc_off: "",
+  // About us & founder profile (Admin → About & founder)
+  about_en: "",
+  about_bn: "",
+  founder_name_en: "",
+  founder_name_bn: "",
+  founder_title_en: "",
+  founder_title_bn: "",
+  founder_bio_en: "",
+  founder_bio_bn: "",
+  founder_experience_en: "",
+  founder_experience_bn: "",
+  founder_linkedin: "",
+  founder_photo_id: "",
+  // Career roadmap figures (JSON, edited in Admin → Calculators)
+  roadmap_json: "",
+  // Show the blinking "Free" badge next to Exams in the menu
+  nav_free_badge: "1",
 };
 
 export const WHATSAPP_RE = /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{10,40}$/;
@@ -73,3 +92,5 @@ export function paymentMethods(s) {
 export async function setMeta(env, k, v) {
   await run(env, "INSERT INTO meta(k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", k, String(v));
 }
+
+export const calcOff = (s) => new Set(String(s.calc_off || "").split(",").map((x) => x.trim()).filter(Boolean));

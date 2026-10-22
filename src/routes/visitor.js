@@ -1,5 +1,5 @@
 // Exams, certificates, email confirmation, purchases and "My downloads & certificates".
-import { html, raw, jsonScript, nowIso, sha256 } from "../lib/util.js";
+import { html, raw, jsonScript, nowIso, sha256, readSigned } from "../lib/util.js";
 import { one, all, run } from "../lib/db.js";
 import { layout, pageHead, waButton } from "../views/layout.js";
 import { icon } from "../views/icons.js";
@@ -37,6 +37,7 @@ async function examsIndex(c) {
     if (lv.price > 0 && left) extra = html`<p class="small" style="margin-top:12px;opacity:.85">${c.t("exam.attempts_left", { n: c.d(left) })}</p>`;
     if (pending) extra = html`<p class="small" style="margin-top:12px;opacity:.85">${c.t("lib.pending")}</p>`;
     cards.push(html`<div class="card level-card ${dark ? "dark" : ""}">
+      ${lv.thumb_id ? html`<img class="exam-thumb" src="/media/${lv.thumb_id}" alt="" loading="lazy">` : ""}
       <div class="row" style="gap:6px"><span class="tag ${dark ? "" : "dark"}" style="${dark ? "background:#333;color:#fff" : ""}">${c.pick(lv.title_en, lv.title_bn)}</span>${dark && lv.price > 0 ? html`<span class="tag" style="background:#fff;color:#000">${c.t("exam.paid")} · ${c.money(lv.price)}</span>` : tagFor(c, lv)}</div>
       <div class="meta">
         <div><strong>${c.d(lv.question_count)}</strong>${c.t("exam.questions")}</div>
@@ -44,13 +45,14 @@ async function examsIndex(c) {
         <div><strong>${c.d(lv.pass_mark)}%</strong>${c.t("exam.to_pass")}</div>
       </div>
       <p>${c.pick(lv.desc_en, lv.desc_bn)}</p>
-      <p class="small" style="margin-top:10px;opacity:.75">${lv.price > 0 ? c.t("exam.attempts_info", { n: c.d(lv.attempts_per_purchase) }) : c.t("exam.free_limit", { n: c.d(lv.free_attempts_per_day) })}</p>
+      <p class="small" style="margin-top:10px">${icon(lv.certificate ? "award" : "chat", 15)} ${lv.certificate ? c.t("exam.certificate_badge") : c.t("exam.no_certificate_badge")}</p>
+      <p class="small" style="margin-top:4px;opacity:.75">${lv.price > 0 ? c.t("exam.attempts_info", { n: c.d(lv.attempts_per_purchase) }) : c.t("exam.free_limit", { n: c.d(lv.free_attempts_per_day) })}</p>
       <div style="height:18px"></div>
       <div class="actions">${actions}</div>${extra}
     </div>`);
   }
   const body = html`${pageHead(c, { title: c.t("exam.title"), lead: c.t("exam.lead"), extra: html`<div class="alert alert-info" style="max-width:760px">${icon("info", 18)}<div>${c.t("exam.demo_bank_note")}</div></div>` })}
-<section class="section-sm" style="padding-top:0"><div class="wrap grid grid-3">${cards}</div></section>
+<section class="section-sm" style="padding-top:0"><div class="wrap grid ${cards.length === 4 ? "grid-2" : "grid-3"}">${cards}</div></section>
 <section class="section-sm">
   <div class="wrap grid grid-2">
     <div class="card surface"><h3>${c.t("exam.how_title")}</h3><ul class="feature-list" style="margin-top:14px">
@@ -96,7 +98,8 @@ async function examStart(c) {
   const body = html`
 <section class="page-head" style="padding-bottom:24px"><div class="wrap wrap-narrow">
   <nav class="crumbs"><a href="${c.p("/exams")}">${c.t("nav.exams")}</a></nav>
-  <div class="row" style="gap:6px;margin-bottom:12px">${tagFor(c, lv)}</div>
+  <div class="row" style="gap:6px;margin-bottom:12px">${tagFor(c, lv)}<span class="tag outline">${lv.certificate ? c.t("exam.certificate_badge") : c.t("exam.no_certificate_badge")}</span></div>
+  ${lv.thumb_id ? html`<img class="exam-hero" src="/media/${lv.thumb_id}" alt="">` : ""}
   <h1>${c.pick(lv.title_en, lv.title_bn)} — ${c.L("Procurement Exam", "প্রকিউরমেন্ট পরীক্ষা")}</h1>
   <p class="lead">${c.pick(lv.desc_en, lv.desc_bn)}</p>
 </div></section>
@@ -191,6 +194,8 @@ async function resultPage(c) {
     ${!att.passed && lv.price > 0 && !left ? html`<a class="btn btn-primary" href="${c.p("/buy/exam/" + lv.code)}">${c.t("exam.buy", { price: c.money(lv.price) })}</a>` : ""}
     <a class="btn btn-secondary" href="${c.p("/exams")}">${c.t("exam.back_to_exams")}</a>
   </div>
+  ${!lv.certificate ? html`<p class="small muted" style="max-width:560px;margin:18px auto 0">${c.t("exam.no_cert_note")}</p>` : ""}
+  ${shareBox(c, `${c.siteUrl}/${c.lang}/results/${att.id}`, c.t("exam.result_public_title", { name: att.name, score: c.pct(pct, 0), exam: c.pick(lv.title_en, lv.title_bn) }))}
   <div style="max-width:420px;margin:22px auto 0">${waButton(c, s, "")}</div>
 </div></section>
 <section class="section-sm" style="padding-top:0"><div class="wrap wrap-narrow">
@@ -203,6 +208,41 @@ async function resultPage(c) {
   <p class="small muted" style="margin-top:14px">${c.t("exam.certified_review_note")}</p>
 </div></section>`;
   return c.html(await layout(c, { title: c.t("exam.result_title"), body, noindex: true }));
+}
+
+// Share buttons (Facebook, LinkedIn, WhatsApp, copy / native share). No tracking scripts.
+export function shareBox(c, url, text) {
+  const u = encodeURIComponent(url), t = encodeURIComponent(text);
+  return html`<div class="share-box" data-share data-url="${url}" data-text="${text}">
+    <p class="small muted" style="margin:0 0 10px">${c.t("exam.share")}</p>
+    <div class="row" style="justify-content:center;gap:8px">
+      <a class="btn btn-ghost btn-sm" href="https://www.facebook.com/sharer/sharer.php?u=${u}" target="_blank" rel="noopener">Facebook</a>
+      <a class="btn btn-ghost btn-sm" href="https://www.linkedin.com/sharing/share-offsite/?url=${u}" target="_blank" rel="noopener">LinkedIn</a>
+      <a class="btn btn-ghost btn-sm" href="https://wa.me/?text=${t}%20${u}" target="_blank" rel="noopener">WhatsApp</a>
+      <button class="btn btn-secondary btn-sm" type="button" data-share-copy data-done="${c.t("exam.share_copied")}">${c.t("exam.share_copy")}</button>
+    </div></div>`;
+}
+
+// Public, shareable result (no email, no answers — only name, exam, score and date).
+async function publicResult(c) {
+  const att = await one(c.env, "SELECT a.id, a.name, a.level_code, a.score_pct, a.passed, a.submitted_at, a.correct_count, a.total_count, l.title_en, l.title_bn, l.certificate FROM attempts a LEFT JOIN exam_levels l ON l.code=a.level_code WHERE a.id=? AND a.submitted_at IS NOT NULL", c.params.id);
+  if (!att) throw new HttpError(404);
+  const cert = att.passed ? await one(c.env, "SELECT code FROM certificates WHERE attempt_id=? AND status='valid'", att.id) : null;
+  const exam = c.pick(att.title_en, att.title_bn);
+  const pct = att.score_pct || 0;
+  const title = c.t("exam.result_public_title", { name: att.name, score: c.pct(pct, 0), exam });
+  const body = html`<section class="section"><div class="wrap wrap-narrow center">
+    <span class="tag dark">${exam}</span>
+    <svg class="score-ring" viewBox="0 0 120 120" style="display:block;margin:28px auto 8px" role="img" aria-label="${c.pct(pct, 1)}">
+      <circle cx="60" cy="60" r="52" fill="none" stroke="#e8e8ed" stroke-width="10"/>
+      <circle cx="60" cy="60" r="52" fill="none" stroke="#000" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(326.73 * pct / 100).toFixed(2)} 326.73" transform="rotate(-90 60 60)"/>
+      <text x="60" y="68" text-anchor="middle" font-size="24" font-weight="700">${c.pct(pct, 0)}</text></svg>
+    <h1 style="font-size:clamp(30px,4vw,44px);margin:12px auto;max-width:22ch">${title}</h1>
+    <p class="lead">${c.t("exam.result_public_lead", { date: c.date(att.submitted_at) })} · ${att.passed ? c.t("exam.passed") : c.t("exam.not_passed")}</p>
+    ${cert ? html`<p><a class="link" href="${c.p("/certificates/" + cert.code)}">${icon("award", 16)} ${c.t("cert.view")} — <span class="mono">${cert.code}</span></a></p>` : ""}
+    <div class="row" style="justify-content:center;margin-top:24px"><a class="btn btn-primary btn-lg" href="${c.p("/exams")}">${c.t("exam.result_public_cta")}</a></div>
+  </div></section>`;
+  return c.html(await layout(c, { title, description: c.t("exam.result_public_lead", { date: c.date(att.submitted_at) }), body, alternates: false }));
 }
 
 // ------------------------------------------------------------------ certificates
@@ -344,6 +384,14 @@ async function buyPage(c) {
     if (!it || it.price <= 0) throw new HttpError(404);
     title = c.pick(it.title_en, it.title_bn); amount = it.price; back = c.p("/library/" + it.slug);
     if (v) { owned = await ownsFile(c.env, v.email, it.slug); pending = owned ? null : await pendingOrder(c.env, v.email, "file", it.slug); }
+  } else if (type === "course") {
+    const k = await one(c.env, "SELECT * FROM courses WHERE slug=? AND status='published'", ref);
+    if (!k || k.price <= 0) throw new HttpError(404);
+    title = c.pick(k.title_en, k.title_bn); amount = k.price; back = c.p("/courses/" + k.slug);
+    if (v) {
+      owned = Boolean(await one(c.env, "SELECT id FROM entitlements WHERE email=? AND item_type='course' AND item_ref=?", v.email, k.slug));
+      pending = owned ? null : await pendingOrder(c.env, v.email, "course", k.slug);
+    }
   } else {
     const lv = await level(c.env, ref);
     if (!lv || lv.price <= 0) throw new HttpError(404);
@@ -365,18 +413,18 @@ async function buyPage(c) {
       <p class="small">${c.t("order.send_to", { method: m.name, type: m.type })}</p></div>`)}</div>
     <p class="small muted" style="margin-top:12px">${c.pick(s.pay_note_en, s.pay_note_bn)}</p>
     <h3 style="margin-top:26px"><span class="step-no">${c.d(2)}</span> ${c.t("order.step2")}</h3>
-    <form action="/api/orders" data-json-form data-needs-email novalidate style="margin-top:12px">
+    <form action="/api/orders" data-json-form novalidate style="margin-top:12px">
       <input type="hidden" name="item_type" value="${type}"><input type="hidden" name="item_ref" value="${ref}">
       <div class="form-grid">
         <div class="field full"><span class="label">${c.t("order.method")}</span><div class="seg">${methods.map((m, i) => html`<label><input type="radio" name="method" value="${m.code}" ${i === 0 ? raw("checked") : ""}> ${m.name}</label>`)}</div></div>
         <div class="field"><label for="o-sender">${c.t("order.sender_generic")}</label><input id="o-sender" name="sender" inputmode="tel" placeholder="01XXXXXXXXX" required autocomplete="tel"></div>
         <div class="field"><label for="o-trx">${c.t("order.trx")}</label><input id="o-trx" name="trx" required autocomplete="off" spellcheck="false" style="text-transform:uppercase"><span class="help">${c.t("order.trx_help")}</span></div>
         <div class="field"><label for="o-name">${c.t("order.name")}</label><input id="o-name" name="name" required autocomplete="name"></div>
+        <div class="field"><label for="o-email">${c.t("order.email")}</label><input id="o-email" name="email" type="email" required autocomplete="email" value="${v ? v.email : ""}"><span class="help">${c.t("order.email_help")}</span></div>
         <div class="field"><label for="o-phone">${c.t("order.phone")}</label><input id="o-phone" name="phone" inputmode="tel" autocomplete="tel"></div>
       </div>
       <div class="alert" data-form-msg hidden style="margin-top:16px"></div>
       <div class="form-actions"><button class="btn btn-primary btn-lg" type="submit">${c.t("order.submit")}</button></div>
-      ${v ? html`<p class="tiny muted" style="margin-top:12px">${c.t("gate.as", { email: v.email })} · <a href="#" data-forget-email>${c.t("gate.change")}</a></p>` : html`<p class="tiny muted" style="margin-top:12px">${c.t("gate.lead")}</p>`}
     </form>`;
   const body = html`
 <section class="page-head" style="padding-bottom:24px"><div class="wrap wrap-narrow">
@@ -413,7 +461,9 @@ async function myPage(c) {
     all(c.env, "SELECT c.*, l.title_en, l.title_bn FROM certificates c LEFT JOIN exam_levels l ON l.code=c.level_code WHERE c.email=? ORDER BY issued_at DESC", v.email),
     all(c.env, "SELECT a.*, l.title_en, l.title_bn FROM attempts a LEFT JOIN exam_levels l ON l.code=a.level_code WHERE a.email=? ORDER BY started_at DESC LIMIT 30", v.email),
     all(c.env, `SELECT e.item_type, e.item_ref, SUM(e.attempts_total) AS total, SUM(e.attempts_used) AS used, i.title_en AS i_en, i.title_bn AS i_bn, l.title_en AS l_en, l.title_bn AS l_bn
+      , k.title_en AS k_en, k.title_bn AS k_bn
       FROM entitlements e LEFT JOIN items i ON e.item_type='file' AND i.slug=e.item_ref LEFT JOIN exam_levels l ON e.item_type='exam' AND l.code=e.item_ref
+      LEFT JOIN courses k ON e.item_type='course' AND k.slug=e.item_ref
       WHERE e.email=? GROUP BY e.item_type, e.item_ref ORDER BY MAX(e.id) DESC`, v.email),
     all(c.env, "SELECT * FROM orders WHERE email=? ORDER BY id DESC LIMIT 30", v.email),
   ]);
@@ -428,7 +478,9 @@ async function myPage(c) {
         <td class="num">${x.status === "valid" ? html`<a class="btn btn-ghost btn-sm" href="${c.p("/certificates/" + x.code + "/print")}">${icon("print", 15)} ${c.L("Print", "প্রিন্ট")}</a>` : html`<span class="tag err">${c.t("cert.revoked")}</span>`}</td></tr>`)}
     </tbody></table></div>` : none}</div>
   <div class="panel"><h3>${c.t("my.owned")}</h3>
-    ${ents.length ? html`<ul class="details-list">${ents.map((e) => e.item_type === "file"
+    ${ents.length ? html`<ul class="details-list">${ents.map((e) => e.item_type === "course"
+      ? html`<li><span>${c.pick(e.k_en, e.k_bn) || e.item_ref} — ${c.t("nav.courses")}</span><span><a class="btn btn-ghost btn-sm" href="${c.p("/courses/" + e.item_ref)}">${c.t("common.open")}</a></span></li>`
+      : e.item_type === "file"
       ? html`<li><span>${c.pick(e.i_en, e.i_bn) || e.item_ref}</span><span><a class="btn btn-ghost btn-sm" href="${c.p("/library/" + e.item_ref)}">${icon("download", 15)} ${c.t("lib.download")}</a></span></li>`
       : html`<li><span>${c.pick(e.l_en, e.l_bn)} — ${c.t("nav.exams")}</span><span>${c.t("exam.attempts_left", { n: c.d(Math.max(0, e.total - e.used)) })} <a class="btn btn-ghost btn-sm" href="${c.p("/exams/" + e.item_ref)}">${c.t("exam.start")}</a></span></li>`)}</ul>` : none}</div>
   <div class="panel"><h3>${c.t("my.attempts")}</h3>
@@ -445,11 +497,27 @@ async function myPage(c) {
   return c.html(await layout(c, { title: c.t("my.title"), body, noindex: true }));
 }
 
+// ------------------------------------------------------------------ access link from the "order approved" email
+async function accessLink(c) {
+  const payload = await readSigned(await c.secret(), c.params.token);
+  if (!payload) {
+    const body = html`<section class="section"><div class="wrap wrap-narrow center"><h1 style="font-size:40px">${c.t("access.expired_title")}</h1>
+      <p class="lead">${c.t("access.expired")}</p><a class="btn btn-secondary" href="${c.p("/contact")}">${c.t("footer.contact")}</a></div></section>`;
+    return c.html(await layout(c, { title: c.t("access.expired_title"), body, noindex: true, alternates: false }), 410);
+  }
+  const { e, to } = JSON.parse(payload);
+  await recordEmail(c.env, e, { source: "order", lang: c.lang, verified: true });
+  await run(c.env, "UPDATE emails SET verified_at=COALESCE(verified_at, ?) WHERE email=?", nowIso(), e);
+  await c.setVisitor(e, true);
+  return c.redirect(String(to || "").startsWith("/") && !String(to).startsWith("//") ? to : c.p("/my"));
+}
+
 export function registerVisitor(r) {
   const L = "/:lang(en|bn)";
   r.get(`${L}/exams`, examsIndex);
   r.get(`${L}/exams/attempt/:id`, attemptPage);
   r.get(`${L}/exams/result/:id`, resultPage);
+  r.get(`${L}/results/:id`, publicResult);
   r.get(`${L}/exams/:code(beginner|experienced|expert|[a-z0-9-]+)`, examStart);
   r.get(`${L}/certificates/verify`, certVerify);
   r.get(`${L}/certificates/:code/print`, certPrint);
@@ -457,6 +525,7 @@ export function registerVisitor(r) {
   r.get(`${L}/verify`, verifyPage);
   r.post(`${L}/verify`, verifyPage);
   r.get(`${L}/buy/done/:ref`, buyDone);
-  r.get(`${L}/buy/:type(file|exam)/:ref`, buyPage);
+  r.get(`${L}/buy/:type(file|exam|course)/:ref`, buyPage);
   r.get(`${L}/my`, myPage);
+  r.get(`${L}/access/:token`, accessLink);
 }

@@ -1,7 +1,7 @@
 // Manual bKash / Nagad orders: the buyer submits the Transaction ID, an admin checks
 // the payment in the bKash/Nagad app and approves; approval creates an entitlement.
-import { one, all, run } from "./db.js";
-import { nowIso, randomCode } from "./util.js";
+import { one, all, run, getSecret } from "./db.js";
+import { nowIso, randomCode, signValue, DAY } from "./util.js";
 import { sendMail, emailLayout } from "./mail.js";
 import { translate } from "./i18n.js";
 
@@ -22,9 +22,13 @@ export async function createOrder(env, o) {
   return ref;
 }
 
+// The button in the "approved" email signs the buyer in (their email counts as confirmed,
+// because only they receive this email) and opens the item. No separate confirmation step.
 async function itemLink(env, siteUrl, order) {
-  if (order.item_type === "file") return `${siteUrl}/${order.lang}/library/${order.item_ref}`;
-  return `${siteUrl}/${order.lang}/exams/${order.item_ref}`;
+  const lang = order.lang === "bn" ? "bn" : "en";
+  const to = order.item_type === "file" ? `/${lang}/library/${order.item_ref}` : order.item_type === "course" ? `/${lang}/courses/${order.item_ref}` : `/${lang}/exams/${order.item_ref}`;
+  const token = await signValue(await getSecret(env), JSON.stringify({ e: order.email, to }), 60 * DAY);
+  return `${siteUrl}/${lang}/access/${encodeURIComponent(token)}`;
 }
 
 export async function approveOrder(env, s, siteUrl, id, note = "") {
