@@ -3,7 +3,7 @@
 // migrations by hand. Every statement is idempotent (IF NOT EXISTS / INSERT OR IGNORE).
 import { randomToken, nowIso } from "./util.js";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
@@ -30,7 +30,7 @@ const SCHEMA = [
      body_en TEXT NOT NULL DEFAULT '', body_bn TEXT NOT NULL DEFAULT '',
      price INTEGER NOT NULL DEFAULT 0, file_id TEXT, cover_id TEXT,
      status TEXT NOT NULL DEFAULT 'draft', sort INTEGER NOT NULL DEFAULT 100,
-     downloads INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, preview_id TEXT)`,
+     downloads INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, preview_id TEXT, section TEXT NOT NULL DEFAULT '')`,
   // Blog and career posts share one table.
   `CREATE TABLE IF NOT EXISTS posts (
      id INTEGER PRIMARY KEY AUTOINCREMENT, section TEXT NOT NULL, slug TEXT NOT NULL, category TEXT NOT NULL DEFAULT '',
@@ -96,7 +96,7 @@ const SCHEMA = [
      content_en TEXT NOT NULL DEFAULT '', content_bn TEXT NOT NULL DEFAULT '',
      schedule_en TEXT NOT NULL DEFAULT '', schedule_bn TEXT NOT NULL DEFAULT '', duration TEXT NOT NULL DEFAULT '',
      price INTEGER NOT NULL DEFAULT 0, thumb_id TEXT, status TEXT NOT NULL DEFAULT 'draft', sort INTEGER NOT NULL DEFAULT 100,
-     created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+     created_at TEXT NOT NULL, updated_at TEXT NOT NULL, section TEXT NOT NULL DEFAULT '')`,
   // v3: user reviews, shown on the home page after the admin approves them
   `CREATE TABLE IF NOT EXISTS reviews (
      id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT '',
@@ -111,6 +111,8 @@ const COLUMNS = [
   ["items", "preview_id", "TEXT"],
   ["exam_levels", "certificate", "INTEGER NOT NULL DEFAULT 1"],
   ["exam_levels", "thumb_id", "TEXT"],
+  ["items", "section", "TEXT NOT NULL DEFAULT ''"],
+  ["courses", "section", "TEXT NOT NULL DEFAULT ''"],
 ];
 
 // Exams: Knowledge Check (free, no certificate), Professional (free, certificate) and Pro (paid, certificate).

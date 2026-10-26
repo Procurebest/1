@@ -6,7 +6,7 @@ import { calcList } from "../lib/calclist.js";
 import { tr } from "../../public/js/calc/defs.js";
 import { all } from "../lib/db.js";
 
-export const ASSET_V = "5";
+export const ASSET_V = "6";
 const asset = (p) => `${p}?v=${ASSET_V}`;
 export const LIB_TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
 
@@ -21,8 +21,8 @@ async function navItems(c, s) {
       sub: [...exams.map((e) => [`/exams/${e.code}`, c.pick(e.title_en, e.title_bn), e.price ? "" : c.t("nav.free")]), ["/certificates/verify", c.t("footer.verify_cert")]] },
     { href: "/library", label: c.t("nav.library"), sub: [...LIB_TYPES.map((t) => [`/library?type=${t}`, c.t("lib.type." + t)]), ["/library", c.t("nav.all_library")]] },
     { href: "/courses", label: c.t("nav.courses"), sub: [["/courses?kind=live", c.t("courses.live")], ["/courses?kind=recorded", c.t("courses.recorded")]] },
-    { href: "/negotiation-guru", label: c.t("nav.negotiation") },
-    { href: "/procurement-ai", label: c.t("nav.ai") },
+    { href: "/negotiation-guru", label: c.t("nav.negotiation"), sub: [["/negotiation-guru#courses", c.t("nav.courses")], ["/negotiation-guru#books", c.t("nav.books")], ["/negotiation-guru#articles", c.t("nav.articles")]] },
+    { href: "/procurement-ai", label: c.t("nav.ai"), sub: [["/procurement-ai#courses", c.t("nav.courses")], ["/procurement-ai#books", c.t("nav.books")], ["/procurement-ai#articles", c.t("nav.articles")]] },
     { href: "/blog", label: c.t("nav.blog"), sub: [["/blog", c.t("nav.articles")], ["/career", c.t("nav.career")], ["/glossary", c.t("nav.glossary")]] },
     { href: "/about", label: c.t("nav.about"), sub: [["/about", c.t("nav.about_us")], ["/about#founder", c.t("nav.founder")], ["/contact", c.t("footer.contact")], ["/help", c.t("footer.help")]] },
   ];
@@ -79,6 +79,7 @@ export async function layout(c, { title, description, body, pageType = "page", n
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="${asset("/css/app.css")}">
+  <link rel="stylesheet" href="${asset("/css/extra.css")}">
   ${pageType === "home" ? html`<script type="application/ld+json">${jsonScript({ "@context": "https://schema.org", "@type": "WebSite", name: "ProcureBest", url: c.siteUrl, inLanguage: lang })}</script>` : ""}
   ${head}
 </head>
@@ -164,8 +165,10 @@ ${body}
   </div>
 </footer>
 ${gate ? gateModal(c, s) : ""}
+${noindex ? "" : welcomePopup(c, s)}
 <script type="application/json" id="pb-config">${jsonScript(gateCfg)}</script>
 <script src="${asset("/js/app.js")}" defer></script>
+<script src="${asset("/js/extras.js")}" defer></script>
 ${scripts.map((src) => src.endsWith(".mjs") || src.includes("/calc/") ? html`<script type="module" src="${asset(src)}"></script>` : html`<script src="${asset(src)}" defer></script>`)}
 </body>
 </html>`;
@@ -205,6 +208,42 @@ export function gateModal(c, s) {
     </form>
   </div>
 </div>`;
+}
+
+// Welcome pop-up, shown once to each visitor (see public/js/extras.js). Text and link come from Admin → Settings.
+export function welcomePopup(c, s) {
+  if (s.popup_enabled === "0") return "";
+  const title = c.pick(s.popup_title_en, s.popup_title_bn);
+  if (!title) return "";
+  const text = c.pick(s.popup_text_en, s.popup_text_bn);
+  const cta = c.pick(s.popup_cta_en, s.popup_cta_bn) || c.t("exam.start");
+  const feats = c.pick(s.popup_features_en, s.popup_features_bn).split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 8);
+  let url = String(s.popup_cta_url || "/exams").trim();
+  if (!/^(\/(?!\/)|https:\/\/)/.test(url)) url = "/exams";
+  if (url.startsWith("/") && !/^\/(en|bn)(\/|$)/.test(url)) url = c.p(url);
+  // A changed pop-up gets a new key, so everybody sees the new version once.
+  let h = 0;
+  for (const ch of ["popup_title_en", "popup_title_bn", "popup_text_en", "popup_text_bn", "popup_features_en", "popup_features_bn", "popup_cta_en", "popup_cta_bn", "popup_cta_url"].map((k) => s[k] || "").join("|")) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return html`
+<div class="modal-backdrop" data-welcome data-key="${(h >>> 0).toString(36)}" role="dialog" aria-modal="true" aria-labelledby="wp-title" hidden>
+  <div class="modal welcome-modal">
+    <button type="button" class="icon-btn wp-close" data-welcome-close aria-label="${c.t("common.close")}">${icon("x", 20)}</button>
+    <div class="wp-top"><div class="wp-badge">${icon("award", 28)}</div><span class="free-blink">${c.t("nav.free")}</span></div>
+    <h3 id="wp-title">${title}</h3>
+    ${text ? html`<p>${text}</p>` : ""}
+    ${feats.length ? html`<ul class="feature-list">${feats.map((f) => html`<li>${icon("check", 18)}<span>${f}</span></li>`)}</ul>` : ""}
+    <div class="form-actions">
+      <a class="btn btn-primary btn-lg" href="${url}" data-welcome-cta>${cta}</a>
+      <button type="button" class="btn btn-ghost" data-welcome-close>${c.t("common.close")}</button>
+    </div>
+  </div>
+</div>`;
+}
+
+// "With certificate" badge; a free exam with a certificate blinks as "Free certificate".
+export function certBadge(c, lv) {
+  if (!lv.certificate) return c.t("exam.no_certificate_badge");
+  return lv.price > 0 ? c.t("exam.certificate_badge") : html`<span class="free-cert-blink">${c.t("exam.free_certificate")}</span>`;
 }
 
 export function pageHead(c, { title, lead, crumbs = [], extra = "", narrow = false }) {

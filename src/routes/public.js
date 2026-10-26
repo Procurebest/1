@@ -1,7 +1,7 @@
 // Public pages: home, calculators, library, blog, career, glossary and info pages.
-import { html, raw, jsonScript, nowIso } from "../lib/util.js";
+import { html, raw, jsonScript, nowIso, paidLeft } from "../lib/util.js";
 import { one, all } from "../lib/db.js";
-import { layout, pageHead, waButton, LIB_TYPES } from "../views/layout.js";
+import { layout, pageHead, waButton, certBadge, LIB_TYPES } from "../views/layout.js";
 import { calcList, ROADMAP } from "../lib/calclist.js";
 import { calcOff } from "../lib/settings.js";
 import { mailConfigured } from "../lib/mail.js";
@@ -28,7 +28,7 @@ const POST_CATS = {
 export const catLabel = (c, code) => (POST_CATS[code] ? c.pick(...POST_CATS[code]) : code);
 const fileSize = (c, bytes) => (!bytes ? "—" : bytes < 1024 * 1024 ? `${c.num(bytes / 1024, 0)} KB` : `${c.num(bytes / 1024 / 1024, 1)} MB`);
 const itemTitle = (c, it) => c.pick(it.title_en, it.title_bn);
-const priceTag = (c, price) => (price > 0 ? html`<span class="tag dark">${c.t("lib.paid")} · ${c.money(price)}</span>` : html`<span class="tag">${c.t("lib.free")}</span>`);
+const priceTag = (c, price) => (price > 0 ? html`<span class="tag dark">${c.t("lib.paid")} · ${c.money(price)}</span>` : html`<span class="tag free-blink-tag">${c.t("lib.free")}</span>`);
 
 // ------------------------------------------------------------------ home
 // Animated hero: many inputs travel as chains into one engine, which returns a result.
@@ -65,6 +65,15 @@ function heroArt(c) {
 
 const stars = (n) => html`<span class="stars" aria-label="${n}/5">${"★".repeat(n)}<span class="off">${"★".repeat(5 - n)}</span></span>`;
 
+// Moving strip of procurement quotes (Admin → Settings). Scrolls right to left, pauses on hover.
+function quoteStrip(c, s) {
+  if (s.quotes_enabled === "0") return "";
+  const list = String(c.pick(s.quotes_en, s.quotes_bn) || "").split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 30);
+  if (!list.length) return "";
+  const items = list.map((q) => html`<span class="quote-item"><span class="q-mark" aria-hidden="true">“</span><span>${q}</span></span>`);
+  return html`<section class="quote-strip" aria-label="${c.L("Procurement quotes", "প্রকিউরমেন্ট বাণী")}"><div class="quote-track"><div class="quote-group">${items}</div><div class="quote-group" aria-hidden="true">${items}</div></div></section>`;
+}
+
 async function home(c) {
   const s = await c.settings();
   const [items, posts, levels, reviews] = await Promise.all([
@@ -75,11 +84,11 @@ async function home(c) {
   ]);
   const lang = c.lang;
   const calcs = calcList(s);
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   const body = html`
 <section class="hero">
   <div class="wrap">
-    <span class="eyebrow">${s["tagline_" + lang]}</span>
+    <span class="eyebrow" data-typewriter="${s["tagline_" + lang]}">${s["tagline_" + lang]}</span>
     <h1>${s["hero_title_" + lang]}</h1>
     <p class="lead">${s["hero_subtitle_" + lang]}</p>
     <div class="row">
@@ -89,6 +98,8 @@ async function home(c) {
     ${heroArt(c)}
   </div>
 </section>
+
+${quoteStrip(c, s)}
 
 ${calcs.length ? html`<section class="section alt" id="calculators">
   <div class="wrap">
@@ -107,7 +118,7 @@ ${levels.length ? html`<section class="section dark">
       <h2>${c.t("home.exams_title")}</h2>
       <p class="lead">${c.t("home.exams_lead")}</p>
     </div>
-    <div class="grid grid-3">${levels.map((lv) => html`
+    <div class="grid grid-3">${paidLeft(levels, 3, (l) => l.price > 0).map((lv) => html`
       <a class="card dark level-card" href="${c.p("/exams/" + lv.code)}">
         ${lv.thumb_id ? html`<img class="exam-thumb" src="/media/${lv.thumb_id}" alt="" loading="lazy">` : ""}
         <div class="row" style="gap:6px"><span class="tag" style="background:#333;color:#fff">${c.pick(lv.title_en, lv.title_bn)}</span>
@@ -118,7 +129,7 @@ ${levels.length ? html`<section class="section dark">
           <div><strong>${c.d(lv.pass_mark)}%</strong>${c.t("exam.to_pass")}</div>
         </div>
         <p>${c.pick(lv.desc_en, lv.desc_bn)}</p>
-        <p class="small" style="margin-top:14px;color:#d2d2d7">${icon(lv.certificate ? "award" : "chat", 15)} ${lv.certificate ? c.t("exam.certificate_badge") : c.t("exam.no_certificate_badge")}</p>
+        <p class="small" style="margin-top:14px;color:#d2d2d7">${icon(lv.certificate ? "award" : "chat", 15)} ${certBadge(c, lv)}</p>
       </a>`)}
     </div>
     <div class="row" style="justify-content:center;margin-top:40px">
@@ -134,7 +145,7 @@ ${items.length ? html`<section class="section">
       <div><span class="eyebrow">${c.t("home.library_eyebrow")}</span><h2 style="margin:0">${c.t("home.library_title")}</h2></div>
       <a class="link" href="${c.p("/library")}">${c.t("home.see_all")} ${icon("arrow-right", 16)}</a>
     </div>
-    <div class="grid grid-4">${items.map((it) => itemCard(c, it))}</div>
+    <div class="grid grid-4">${paidLeft(items, 4, (i) => i.price > 0).map((it) => itemCard(c, it))}</div>
   </div>
 </section>` : ""}
 
@@ -325,7 +336,7 @@ async function library(c) {
         ${TYPES.filter((t) => counts[t] || type === t).map((t) => html`<button type="button" class="chip ${type === t ? "on" : ""}" data-dir-cat="${t}">${c.t("lib.type." + t)} <span class="muted">${c.d(counts[t])}</span></button>`)}
       </div>
     </div>
-    ${items.length ? html`<div class="grid grid-3">${items.map((it) => itemCard(c, it))}</div>
+    ${items.length ? html`<div class="grid grid-3">${paidLeft(items, 3, (i) => i.price > 0).map((it) => itemCard(c, it))}</div>
       <p class="empty" data-dir-empty hidden>${c.t("dir.no_results")}</p>` : html`<p class="empty">${c.t("lib.none")}</p>`}
   </div>
 </section>`;
@@ -336,7 +347,7 @@ async function libraryItem(c) {
   const it = await one(c.env, "SELECT * FROM items WHERE slug=? AND status='published'", c.params.slug);
   if (!it) throw new HttpError(404);
   const file = it.file_id ? await one(c.env, "SELECT name, size, mime FROM files WHERE id=? AND complete=1", it.file_id) : null;
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   let owned = false, pending = null;
   if (v && it.price > 0) {
     owned = Boolean(await one(c.env, "SELECT id FROM entitlements WHERE email=? AND item_type='file' AND item_ref=?", v.email, it.slug));
@@ -361,7 +372,7 @@ async function libraryItem(c) {
 <section class="section-sm" style="padding-top:0">
   <div class="wrap split" style="align-items:start;gap:48px">
     <div>
-      ${it.cover_id ? html`<img src="/media/${it.cover_id}" alt="" style="max-width:220px;border-radius:12px;box-shadow:var(--shadow);margin-bottom:24px">` : html`<div class="card-icon" style="width:64px;height:64px">${icon(TYPE_ICON[it.type], 30)}</div>`}
+      ${it.cover_id ? html`<img class="item-cover-lg" src="/media/${it.cover_id}" alt="${itemTitle(c, it)}">` : html`<div class="card-icon" style="width:64px;height:64px">${icon(TYPE_ICON[it.type], 30)}</div>`}
       <div class="row" style="gap:6px;margin-bottom:12px"><span class="tag outline">${c.t("lib.one." + it.type)}</span>${priceTag(c, it.price)}</div>
       <h1 style="font-size:clamp(32px,4vw,48px)">${itemTitle(c, it)}</h1>
       <p class="lead">${c.pick(it.summary_en, it.summary_bn)}</p>
@@ -416,16 +427,31 @@ async function postList(c, section) {
   const cat = (c.url.searchParams.get("category") || "").trim().slice(0, 40);
   const posts = await all(c.env, "SELECT * FROM posts WHERE section=? AND status='published' ORDER BY published_at DESC", section);
   const cats = [...new Set(posts.map((p) => p.category).filter(Boolean))];
+  // Negotiation Guru and Procurement AI also show the books and courses the admin tagged for them.
+  const hub = section === "negotiation" || section === "ai";
+  const books = hub ? await all(c.env, "SELECT * FROM items WHERE status='published' AND section=? ORDER BY sort, id DESC", section) : [];
+  const courses = hub ? await all(c.env, "SELECT * FROM courses WHERE status='published' AND section=? ORDER BY sort, id DESC", section) : [];
+  const extras = books.length + courses.length > 0;
   const body = html`${pageHead(c, { title: secT(c, section, "title"), lead: secT(c, section, "lead") })}
-<section class="section-sm" style="padding-top:0">
+${extras ? html`<section class="section-sm" style="padding-top:0"><div class="wrap">
+  <div class="chips" style="margin-bottom:8px">
+    ${courses.length ? html`<a class="chip" href="#courses">${c.t("nav.courses")} <span class="muted">${c.d(courses.length)}</span></a>` : ""}
+    ${books.length ? html`<a class="chip" href="#books">${c.t("nav.books")} <span class="muted">${c.d(books.length)}</span></a>` : ""}
+    ${posts.length ? html`<a class="chip" href="#articles">${c.t("nav.articles")} <span class="muted">${c.d(posts.length)}</span></a>` : ""}
+  </div>
+  ${courses.length ? html`<h2 class="hub-h" id="courses">${c.t("nav.courses")}</h2><div class="grid grid-3">${paidLeft(courses, 3, (k) => k.price > 0).map((k) => courseCard(c, k))}</div>` : ""}
+  ${books.length ? html`<h2 class="hub-h" id="books">${c.t("nav.books")}</h2><div class="grid grid-3">${paidLeft(books, 3, (it) => it.price > 0).map((it) => itemCard(c, it))}</div>` : ""}
+</div></section>` : ""}
+<section class="section-sm" style="padding-top:0" id="articles">
   <div class="wrap" data-directory>
+    ${extras && posts.length ? html`<h2 class="hub-h" style="margin-top:0">${c.t("nav.articles")}</h2>` : ""}
     ${posts.length ? html`<div class="toolbar">
       <div class="search">${icon("search", 18)}<input type="search" value="${q}" placeholder="${c.t("learn.search")}" aria-label="${c.t("learn.search")}" data-dir-search></div>
       ${cats.length > 1 ? html`<div class="chips" role="group"><button type="button" class="chip ${cat ? "" : "on"}" data-dir-cat="">${c.t("dir.all")}</button>
         ${cats.map((k) => html`<button type="button" class="chip ${cat === k ? "on" : ""}" data-dir-cat="${k}">${catLabel(c, k)}</button>`)}</div>` : ""}
     </div>
     <div class="grid grid-3">${posts.map((p) => postCard(c, p, section))}</div>
-    <p class="empty" data-dir-empty hidden>${c.t("post.none")}</p>` : html`<div class="empty"><p style="margin:0 0 16px">${section === "career" ? c.t("career.none") : c.t("section.empty")}</p>
+    <p class="empty" data-dir-empty hidden>${c.t("post.none")}</p>` : extras ? "" : html`<div class="empty"><p style="margin:0 0 16px">${section === "career" ? c.t("career.none") : c.t("section.empty")}</p>
       <button class="btn btn-primary" type="button" data-subscribe data-done="${c.L("✓ Subscribed — thank you", "✓ সাবস্ক্রাইব হয়েছে — ধন্যবাদ")}">${c.t("newsletter.subscribe")}</button></div>`}
   </div>
 </section>`;
@@ -584,7 +610,7 @@ async function coursesPage(c) {
 <section class="section-sm" style="padding-top:0"><div class="wrap">
   ${list.length ? html`<div class="chips" style="margin-bottom:28px"><a class="chip ${kind ? "" : "on"}" href="${c.p("/courses")}">${c.t("dir.all")}</a>
       <a class="chip ${kind === "live" ? "on" : ""}" href="${c.p("/courses?kind=live")}">${c.t("courses.live")}</a><a class="chip ${kind === "recorded" ? "on" : ""}" href="${c.p("/courses?kind=recorded")}">${c.t("courses.recorded")}</a></div>
-    ${shown.length ? html`<div class="grid grid-3">${shown.map((k) => courseCard(c, k))}</div>` : html`<p class="empty">${c.t("courses.none_kind")}</p>`}`
+    ${shown.length ? html`<div class="grid grid-3">${paidLeft(shown, 3, (k) => k.price > 0).map((k) => courseCard(c, k))}</div>` : html`<p class="empty">${c.t("courses.none_kind")}</p>`}`
   : html`<div class="panel center" style="max-width:640px;margin:0 auto"><div class="card-icon" style="margin:0 auto 16px">${icon("calendar", 22)}</div>
       <h2 style="font-size:30px">${c.t("courses.soon_title")}</h2><p class="muted">${c.t("courses.soon")}</p>
       <button class="btn btn-primary" type="button" data-subscribe data-done="${c.L("✓ We will let you know", "✓ আমরা জানিয়ে দেব")}">${c.t("courses.notify")}</button></div>`}
@@ -595,7 +621,7 @@ async function coursesPage(c) {
 async function coursePage(c) {
   const k = await one(c.env, "SELECT * FROM courses WHERE slug=? AND status='published'", c.params.slug);
   if (!k) throw new HttpError(404);
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   const s = await c.settings();
   const ready = v && (v.verified || !mailConfigured(c.env, s));
   const owned = k.price <= 0 || (ready && await one(c.env, "SELECT id FROM entitlements WHERE email=? AND item_type='course' AND item_ref=?", v.email, k.slug));

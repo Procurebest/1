@@ -1,0 +1,44 @@
+/* ProcureBest v5 additions: welcome pop-up, quote strip, free blinking, bigger covers, blue "AI", typed slogan */
+
+/* ---------- welcome pop-up */
+.welcome-modal { max-width: 520px; position: relative; text-align: left; padding: 34px 32px 28px; }
+.welcome-modal .wp-close { position: absolute; top: 14px; right: 14px; }
+.wp-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.wp-badge { width: 56px; height: 56px; border-radius: 16px; background: #000; color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.welcome-modal h3 { font-size: 28px; line-height: 1.2; margin-bottom: 10px; }
+.welcome-modal p { color: var(--ink-2); }
+.welcome-modal .feature-list { margin: 18px 0 8px; font-size: 15px; }
+.welcome-modal .feature-list svg { color: var(--ok); }
+.welcome-modal .form-actions { margin-top: 22px; }
+@media (max-width: 520px) { .welcome-modal { padding: 28px 20px 22px; } .welcome-modal h3 { font-size: 24px; } }
+
+/* ---------- moving procurement quotes */
+.quote-strip { background: #000; color: #f5f5f7; overflow: hidden; padding: 18px 0; }
+.quote-track { display: flex; width: max-content; animation: quote-scroll 80s linear infinite; }
+.quote-strip:hover .quote-track { animation-play-state: paused; }
+.quote-group { display: flex; flex-shrink: 0; }
+.quote-item { display: inline-flex; align-items: center; gap: 12px; padding-left: 44px; font-size: 18px; white-space: nowrap; }
+.quote-item::after { content: "✦"; opacity: .4; margin-left: 44px; }
+.q-mark { font-size: 30px; line-height: 1; opacity: .55; transform: translateY(4px); }
+@keyframes quote-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .quote-strip { overflow-x: auto; } }
+
+/* ---------- everything free blinks */
+.tag.free-blink-tag { background: var(--ok); color: #fff; animation: blink 1.6s ease-in-out infinite; }
+.free-cert-blink { font-weight: 700; animation: blink 1.6s ease-in-out infinite; }
+
+/* ---------- covers: large and readable, no empty space around them */
+.card .item-cover { width: 100%; height: auto; max-height: 380px; object-fit: contain; background: var(--surface); border-radius: 12px; box-shadow: none; margin: 0 0 18px; }
+.item-cover-lg { display: block; width: 100%; max-width: 380px; height: auto; border-radius: 14px; box-shadow: var(--shadow); margin-bottom: 24px; }
+
+/* ---------- blue "AI" */
+.ai-blue { color: #0071e3; }
+.section.dark .ai-blue, .footer .ai-blue { color: #4da3ff; }
+
+/* ---------- typed slogan */
+.eyebrow.typewriter { min-height: 1.6em; }
+.tw-caret { display: inline-block; width: 2px; height: 1em; background: currentColor; margin-left: 3px; vertical-align: -0.12em; animation: blink 1s steps(2) infinite; }
+
+/* ---------- Negotiation Guru / Procurement AI hubs */
+.hub-h { font-size: clamp(26px, 3vw, 34px); margin: 34px 0 18px; scroll-margin-top: calc(var(--nav-h) + 20px); }
+#articles, #courses, #books { scroll-margin-top: calc(var(--nav-h) + 20px); }

@@ -51,6 +51,21 @@ export const DEFAULTS = {
   roadmap_json: "",
   // Show the blinking "Free" badge next to Exams in the menu
   nav_free_badge: "1",
+  // Welcome pop-up (Admin → Settings)
+  popup_enabled: "1",
+  popup_title_en: "Get your free certificate — take the exam now",
+  popup_title_bn: "ফ্রি সার্টিফিকেট পেতে এখনই পরীক্ষা দিন",
+  popup_text_en: "Put your procurement knowledge to the test and earn a certificate anyone can verify.",
+  popup_text_bn: "আপনার মেধা যাচাই করুন এবং যে কেউ যাচাই করতে পারে এমন সার্টিফিকেট জিতে নিন।",
+  popup_features_en: "20 randomised questions, 25 minutes\nInstant server-side scoring\nVerifiable certificate with QR code\nNo account or password needed",
+  popup_features_bn: "২০টি এলোমেলো প্রশ্ন, ২৫ মিনিট\nসার্ভারে তাৎক্ষণিক নম্বর\nQR কোডসহ যাচাইযোগ্য সার্টিফিকেট\nকোনো অ্যাকাউন্ট বা পাসওয়ার্ড লাগবে না",
+  popup_cta_en: "Take the free exam now",
+  popup_cta_bn: "এখনই ফ্রি পরীক্ষা দিন",
+  popup_cta_url: "/exams",
+  // Moving procurement quotes (one per line)
+  quotes_enabled: "1",
+  quotes_en: "The lowest price is not always the lowest cost.\nA good buyer negotiates the deal; a great buyer builds the relationship.\nMeasure delivery, quality and cost — the savings will follow.\nNo PO, no payment: control begins before the purchase.\nKnow your BATNA before you start talking.\nA supplier becomes a partner when the numbers are open on both sides.\nTotal cost of ownership starts where the quotation ends.\nA risk you cannot see is a cost you have not priced.",
+  quotes_bn: "সবচেয়ে কম দাম মানেই সবচেয়ে কম খরচ নয়।\nভালো ক্রেতা দরদাম করেন; সেরা ক্রেতা সম্পর্ক গড়েন।\nডেলিভারি, গুণমান ও খরচ মাপুন — সাশ্রয় আপনিই আসবে।\nপিও নেই, পেমেন্ট নেই — নিয়ন্ত্রণ শুরু হয় কেনার আগেই।\nআলোচনায় বসার আগে নিজের BATNA জানুন।\nদুই পক্ষের সংখ্যা খোলা থাকলে সাপ্লায়ার অংশীদার হয়ে ওঠে।\nকোটেশন যেখানে শেষ, মোট মালিকানা খরচ সেখানেই শুরু।\nযে ঝুঁকি দেখা যায় না, তার দামও ধরা হয় না।",
 };
 
 export const WHATSAPP_RE = /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{10,40}$/;

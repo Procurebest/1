@@ -28,6 +28,17 @@ export function html(strings, ...values) {
   return new Raw(out);
 }
 
+// Keeps the original serial order, but inside every row of `cols` cards the paid ones come first (left),
+// the free ones last (right).
+export function paidLeft(list, cols, isPaid) {
+  const out = [];
+  for (let i = 0; i < list.length; i += cols) {
+    const row = list.slice(i, i + cols);
+    out.push(...row.filter(isPaid), ...row.filter((x) => !isPaid(x)));
+  }
+  return out;
+}
+
 // JSON safe to embed inside <script type="application/json">
 export const jsonScript = (obj) => raw(JSON.stringify(obj).replace(/</g, "\\u003c"));
 

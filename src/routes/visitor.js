@@ -1,7 +1,7 @@
 // Exams, certificates, email confirmation, purchases and "My downloads & certificates".
-import { html, raw, jsonScript, nowIso, sha256, readSigned } from "../lib/util.js";
+import { html, raw, jsonScript, nowIso, sha256, readSigned, paidLeft } from "../lib/util.js";
 import { one, all, run } from "../lib/db.js";
-import { layout, pageHead, waButton } from "../views/layout.js";
+import { layout, pageHead, waButton, certBadge } from "../views/layout.js";
 import { icon } from "../views/icons.js";
 import { HttpError } from "../app.js";
 import { paymentMethods } from "../lib/settings.js";
@@ -14,12 +14,12 @@ const tagFor = (c, lv) => (lv.price > 0 ? html`<span class="tag dark">${c.t("exa
 
 // ------------------------------------------------------------------ exams index
 async function examsIndex(c) {
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   const lvs = await levels(c.env);
   const cards = [];
-  for (const [i, lv] of lvs.entries()) {
+  for (const lv of paidLeft(lvs, 3, (l) => l.price > 0)) {
     const avail = await available(c.env, lv.code);
-    const dark = i === lvs.length - 1;
+    const dark = lv.price > 0;
     let extra = "";
     let active = null, left = 0, pending = null;
     if (v) {
@@ -45,7 +45,7 @@ async function examsIndex(c) {
         <div><strong>${c.d(lv.pass_mark)}%</strong>${c.t("exam.to_pass")}</div>
       </div>
       <p>${c.pick(lv.desc_en, lv.desc_bn)}</p>
-      <p class="small" style="margin-top:10px">${icon(lv.certificate ? "award" : "chat", 15)} ${lv.certificate ? c.t("exam.certificate_badge") : c.t("exam.no_certificate_badge")}</p>
+      <p class="small" style="margin-top:10px">${icon(lv.certificate ? "award" : "chat", 15)} ${certBadge(c, lv)}</p>
       <p class="small" style="margin-top:4px;opacity:.75">${lv.price > 0 ? c.t("exam.attempts_info", { n: c.d(lv.attempts_per_purchase) }) : c.t("exam.free_limit", { n: c.d(lv.free_attempts_per_day) })}</p>
       <div style="height:18px"></div>
       <div class="actions">${actions}</div>${extra}
@@ -69,7 +69,7 @@ async function examsIndex(c) {
 async function examStart(c) {
   const lv = await level(c.env, c.params.code);
   if (!lv || !lv.published) throw new HttpError(404);
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   const avail = await available(c.env, lv.code);
   let left = 0, pending = null, active = null, usedToday = 0;
   if (v) {
@@ -98,7 +98,7 @@ async function examStart(c) {
   const body = html`
 <section class="page-head" style="padding-bottom:24px"><div class="wrap wrap-narrow">
   <nav class="crumbs"><a href="${c.p("/exams")}">${c.t("nav.exams")}</a></nav>
-  <div class="row" style="gap:6px;margin-bottom:12px">${tagFor(c, lv)}<span class="tag outline">${lv.certificate ? c.t("exam.certificate_badge") : c.t("exam.no_certificate_badge")}</span></div>
+  <div class="row" style="gap:6px;margin-bottom:12px">${tagFor(c, lv)}<span class="tag outline">${certBadge(c, lv)}</span></div>
   ${lv.thumb_id ? html`<img class="exam-hero" src="/media/${lv.thumb_id}" alt="">` : ""}
   <h1>${c.pick(lv.title_en, lv.title_bn)} — ${c.L("Procurement Exam", "প্রকিউরমেন্ট পরীক্ষা")}</h1>
   <p class="lead">${c.pick(lv.desc_en, lv.desc_bn)}</p>
@@ -121,7 +121,7 @@ async function needOwner(c, att) {
 }
 
 async function attemptPage(c) {
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   const att = v ? await loadAttempt(c.env, c.params.id, v.email) : null;
   const denied = await needOwner(c, att);
   if (denied) return denied;
@@ -164,7 +164,7 @@ async function attemptPage(c) {
 }
 
 async function resultPage(c) {
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   const att = v ? await loadAttempt(c.env, c.params.id, v.email) : null;
   const denied = await needOwner(c, att);
   if (denied) return denied;
@@ -249,7 +249,7 @@ async function publicResult(c) {
 async function certVerify(c) {
   const code = (c.params.code || c.url.searchParams.get("code") || "").trim().toUpperCase().slice(0, 40);
   const cert = code ? await one(c.env, "SELECT c.*, l.title_en, l.title_bn FROM certificates c LEFT JOIN exam_levels l ON l.code=c.level_code WHERE c.code=?", code) : null;
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   const owner = cert && v && v.email === cert.email;
   const shareUrl = cert ? `${c.siteUrl}/${c.lang}/certificates/${cert.code}` : "";
   const body = html`${pageHead(c, { title: c.t("cert.verify_title"), lead: c.t("cert.verify_lead"), narrow: true,
@@ -283,7 +283,7 @@ async function certPrint(c) {
   const code = c.params.code.toUpperCase();
   const cert = await one(c.env, "SELECT c.*, l.title_en, l.title_bn FROM certificates c LEFT JOIN exam_levels l ON l.code=c.level_code WHERE c.code=?", code);
   if (!cert) throw new HttpError(404);
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   if (!v || v.email !== cert.email) return c.redirect(c.p("/certificates/" + code));
   const url = `${c.siteUrl}/${c.lang}/certificates/${cert.code}`;
   const T = c.t;
@@ -378,7 +378,7 @@ async function verifyPage(c) {
 async function buyPage(c) {
   const { type, ref } = c.params;
   let title, amount, back, owned = false, pending = null;
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   if (type === "file") {
     const it = await one(c.env, "SELECT * FROM items WHERE slug=? AND status='published'", ref);
     if (!it || it.price <= 0) throw new HttpError(404);
@@ -450,7 +450,7 @@ async function buyDone(c) {
 
 // ------------------------------------------------------------------ my area
 async function myPage(c) {
-  const v = await c.visitor();
+  const v = await c.readyVisitor();
   if (!v) {
     const body = html`${pageHead(c, { title: c.t("my.title"), lead: c.t("my.need_email"), narrow: true,
       extra: html`<button class="btn btn-primary btn-lg" type="button" data-confirm-email>${icon("mail", 18)} ${c.t("gate.title")}</button>

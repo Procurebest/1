@@ -254,7 +254,7 @@ export function registerApi(r) {
   });
 
   r.post("/api/exams/attempt/:id/answer", async (c) => {
-    const v = await c.visitor();
+    const v = await visitorReady(c);
     if (!v) return needEmail(c);
     const att = await loadAttempt(c.env, c.params.id, v.email);
     if (!att) return c.json({ ok: false }, 404);
@@ -269,7 +269,7 @@ export function registerApi(r) {
   });
 
   r.post("/api/exams/attempt/:id/submit", async (c) => {
-    const v = await c.visitor();
+    const v = await visitorReady(c);
     if (!v) return needEmail(c);
     const att = await loadAttempt(c.env, c.params.id, v.email);
     if (!att) return c.json({ ok: false }, 404);

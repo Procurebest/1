@@ -2,6 +2,7 @@
 import { i18n, LANGS } from "./lib/i18n.js";
 import { loadSettings } from "./lib/settings.js";
 import { getSecret } from "./lib/db.js";
+import { mailConfigured } from "./lib/mail.js";
 import { getCookie, cookie, readSigned, signValue, normEmail, hmac, safeEqual, DAY, HOUR } from "./lib/util.js";
 
 export class HttpError extends Error {
@@ -73,6 +74,14 @@ export class Ctx {
       } catch { /* ignore */ }
     }
     return this._visitor;
+  }
+  // The visitor whose email is confirmed (or any visitor while the site has no email service).
+  // Pages that show someone's own data (orders, exams, certificates) must use this, never visitor().
+  async readyVisitor() {
+    const v = await this.visitor();
+    if (!v) return null;
+    if (v.verified) return v;
+    return mailConfigured(this.env, await this.settings()) ? null : v;
   }
   async setVisitor(email, verified) {
     const token = await signValue(await this.secret(), JSON.stringify({ e: email, v: verified ? 1 : 0 }), 180 * DAY);

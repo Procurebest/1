@@ -357,17 +357,18 @@ console.log("\nCollect-only mode (no email service) + KV storage");
     const exp = { text: new TextDecoder().decode(expBytes) };
     assert.match(exp.text, /^id,level,topic/);
     const lines = exp.text.trim().split("\r\n");
-    assert.equal(lines.length, 31);
+    { const bc = Number(Object.values(await env.DB.prepare("SELECT COUNT(*) FROM questions WHERE level_code='beginner'").first())[0]); assert.equal(lines.length, bc + 1); }
     const newRow = '\r\n,expert,risk,published,"What is a ""single point of failure"" in supply?",,A risk where one supplier failure stops supply,,A discount,,,,,,1,Explained,';
+    const beforeCount = Number(Object.values(await env.DB.prepare("SELECT COUNT(*) FROM questions").first())[0]);
     const fd = new FormData();
     const imp = await admin.req("GET", "/admin/questions/import");
     fd.set("_csrf", formCsrf(imp.text));
     fd.set("csv", new Blob([exp.text + newRow], { type: "text/csv" }), "q.csv");
     const r = await admin.req("POST", "/admin/questions/import", { body: fd });
     assert.equal(r.status, 200);
-    assert.match(r.text, /Added 1, updated 30, skipped 0|যোগ হয়েছে ১|Added 1/);
+    assert.match(r.text, /(Added 1,|যোগ হয়েছে 1,)/);
     const n = Object.values(await env.DB.prepare("SELECT COUNT(*) FROM questions").first())[0];
-    assert.equal(n, 123);
+    assert.equal(n, beforeCount + 1);
   });
   await test("contact form stores the message (honeypot ignored)", async () => {
     const r = await other.req("POST", "/api/contact", { json: { name: "Karim", email: "karim@example.com", subject: "Hi", message: "Please add a freight calculator for air.", lang: "en" } });
@@ -596,6 +597,53 @@ console.log("\nEmail verification mode (email service configured) + D1 file stor
     const d = await admin.req("POST", "/admin/exams/negotiation-skills/delete", { form: { _csrf: formCsrf(pg.text) } });
     assert.equal(d.status, 303);
     assert.equal(await env.DB.prepare("SELECT code FROM exam_levels WHERE code='negotiation-skills'").first(), null);
+  });
+  await test("newsletter: one click, no confirmation code", async () => {
+    const fresh = client(env);
+    const before = outbox.length;
+    const ask = await fresh.req("POST", "/api/subscribe", { json: { lang: "en" } });
+    assert.equal(ask.status, 400);
+    assert.equal(ask.data.ask_email, true);
+    assert.equal((await fresh.req("POST", "/api/subscribe", { json: { email: "bad", lang: "en" } })).status, 400);
+    const ok = await fresh.req("POST", "/api/subscribe", { json: { email: "Reader@Example.com", lang: "bn" } });
+    assert.equal(ok.status, 200);
+    assert.equal(outbox.length, before, "no email is sent");
+    const row = await env.DB.prepare("SELECT subscribed FROM emails WHERE email='reader@example.com'").first();
+    assert.equal(row.subscribed, 1);
+    assert.equal((await fresh.req("POST", "/api/subscribe", { json: { lang: "en" } })).status, 200, "second click uses the remembered email");
+  });
+  await test("orders and activity download as CSV", async () => {
+    const o = await admin.req("GET", "/admin/orders/export?status=approved", { raw: true });
+    assert.equal(o.status, 200);
+    const ot = await o.text();
+    assert.match(ot, /^\uFEFF?ref,created_at,status/);
+    assert.match(ot, /COURSE1234/);
+    const a = await admin.req("GET", "/admin/activity/export", { raw: true });
+    assert.equal(a.status, 200);
+    assert.match(await a.text(), /created_at,kind,email/);
+    assert.equal((await client(env).req("GET", "/admin/orders/export")).status, 303, "admins only");
+  });
+  await test("an unconfirmed email cannot see someone else's data", async () => {
+    const eve = client(env);
+    await eve.req("POST", "/api/orders", { json: { item_type: "file", item_ref: "procurement-kpi-dashboard", method: "bkash", sender: "01712340000", trx: "ATTACK1234", name: "Eve", email: "nasrin@example.com", lang: "en" } });
+    const my = await eve.req("GET", "/en/my");
+    assert.equal(my.status, 200);
+    assert.doesNotMatch(my.text, /Procurement KPI Dashboard/);
+    assert.equal((await eve.req("GET", "/api/me")).data.ok, false);
+  });
+  await test("home page has the pop-up, the quote strip and the typed slogan", async () => {
+    const h = await client(env).req("GET", "/en/");
+    assert.match(h.text, /data-welcome/);
+    assert.match(h.text, /class="quote-strip"/);
+    assert.match(h.text, /data-typewriter=/);
+  });
+  await test("a book tagged for Negotiation Guru appears on that page and its menu has Courses/Books/Articles", async () => {
+    await env.DB.prepare("UPDATE items SET section='negotiation' WHERE slug='supplier-database'").run();
+    const p = await client(env).req("GET", "/en/negotiation-guru");
+    assert.equal(p.status, 200);
+    assert.match(p.text, /id="books"/);
+    assert.match(p.text, /Supplier Database/);
+    assert.match(p.text, /negotiation-guru#courses/);
   });
   await test("posts in the new sections get their own address and a cover picture", async () => {
     const pg = await admin.req("GET", "/admin/posts/new?section=ai");

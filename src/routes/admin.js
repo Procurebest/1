@@ -260,6 +260,7 @@ async function libraryEdit(c) {
       help: c.L("A few sample pages as a separate PDF. Anyone can read it on the item page without an email — do not upload the full paid book here.", "কয়েকটি নমুনা পাতা আলাদা পিডিএফ হিসেবে। যে কেউ ইমেইল ছাড়াই আইটেমের পাতায় পড়তে পারবে — পুরো পেইড বই এখানে দেবেন না।") })}
     ${fld("slug", c.L("Web address (slug)", "ওয়েব ঠিকানা (slug)"), it.slug, { help: c.L("Leave empty to create it from the English title.", "ফাঁকা রাখলে ইংরেজি শিরোনাম থেকে তৈরি হবে।") })}
     ${fld("sort", c.L("Order (smaller first)", "ক্রম (ছোট সংখ্যা আগে)"), it.sort, { type: "number" })}
+    ${sel("section", c.L("Also show in", "এখানেও দেখান"), it.section || "", [["", c.L("Library only", "শুধু লাইব্রেরি")], ["negotiation", c.L("Negotiation Guru", "নেগোসিয়েশন গুরু")], ["ai", c.L("Procurement AI", "প্রকিউরমেন্ট এআই")]], { help: c.L("Related books appear on that page and in its menu.", "সংশ্লিষ্ট বই ওই পাতায় ও তার মেনুতে দেখাবে।") })}
   </div>
   <div class="form-actions"><button class="btn btn-primary" type="submit">${c.L("Save", "সেভ করুন")}</button><a class="btn btn-ghost" href="/admin/library">${c.L("Cancel", "বাতিল")}</a>
     ${!isNew && it.status === "published" ? html`<a class="link small" href="/${c.lang}/library/${it.slug}" target="_blank">${c.L("View on site", "সাইটে দেখুন")} ${icon("arrow-right", 14)}</a>` : ""}</div>
@@ -301,6 +302,7 @@ async function librarySave(c) {
     if (old.preview_id && old.preview_id !== previewId) await deleteFile(c.env, old.preview_id);
     if (old.slug !== slug) await run(c.env, "UPDATE entitlements SET item_ref=? WHERE item_type='file' AND item_ref=?", slug, old.slug);
   }
+  await run(c.env, "UPDATE items SET section=? WHERE id=?", ["negotiation", "ai"].includes(f.get("section")) ? f.get("section") : "", id);
   return c.redirect(back(`/admin/library/${id}`, "saved"));
 }
 
@@ -322,7 +324,7 @@ async function uploadInit(c) {
   const e = ext(name);
   const allowed = kind === "cover" ? IMAGE_EXT : kind === "preview" ? ["pdf"] : FILE_EXT;
   if (!allowed.includes(e)) return c.json({ ok: false, error: c.L(`This file type (.${e}) is not allowed.`, `এই ধরনের ফাইল (.${e}) অনুমোদিত নয়।`) }, 400);
-  const max = kind === "cover" ? 3 * 1024 * 1024 : kind === "preview" ? Math.min(maxFileSize(c.env), 20 * 1024 * 1024) : maxFileSize(c.env);
+  const max = kind === "cover" ? 3 * 1024 * 1024 : kind === "preview" ? Math.min(maxFileSize(c.env), 3 * 1024 * 1024) : maxFileSize(c.env);
   if (size <= 0 || size > max) return c.json({ ok: false, error: c.L(`The file is too large. Maximum: ${fileSize(c, max)}.`, `ফাইলটি অনেক বড়। সর্বোচ্চ: ${fileSize(c, max)}।`) }, 400);
   return c.json({ ok: true, ...(await createFile(c.env, name, size)) });
 }
@@ -856,6 +858,16 @@ async function settingsPage(c) {
     ${fld("hero_subtitle_en", c.L("Homepage sub-headline (English)", "হোমপেজের উপশিরোনাম (ইংরেজি)"), s.hero_subtitle_en, { rows: 2 })}${fld("hero_subtitle_bn", c.L("Homepage sub-headline (Bengali)", "হোমপেজের উপশিরোনাম (বাংলা)"), s.hero_subtitle_bn, { rows: 2 })}
     ${fld("seo_description_en", c.L("Search engine description (English)", "সার্চ ইঞ্জিনের বিবরণ (ইংরেজি)"), s.seo_description_en, { rows: 2 })}${fld("seo_description_bn", c.L("Search engine description (Bengali)", "সার্চ ইঞ্জিনের বিবরণ (বাংলা)"), s.seo_description_bn, { rows: 2 })}
     ${sel("default_lang", c.L("Language when someone opens the bare domain", "শুধু ডোমেইন খুললে কোন ভাষা"), s.default_lang, [["en", "English"], ["bn", "বাংলা"]], { third: true })}`)}
+  ${section(c.L("Welcome pop-up", "স্বাগত পপ-আপ"), c.L("Shown once to every new visitor. If you change the text, everybody sees the new version once.", "প্রতিটি নতুন ভিজিটরকে একবার দেখানো হয়। লেখা বদলালে সবাই নতুন সংস্করণটি একবার দেখবেন।"), html`
+    ${sel("popup_enabled", c.L("Show the pop-up", "পপ-আপ দেখান"), s.popup_enabled, [["1", c.L("Yes", "হ্যাঁ")], ["0", c.L("No", "না")]], { third: true })}
+    ${fld("popup_cta_url", c.L("Button link", "বাটনের লিংক"), s.popup_cta_url, { third: true, help: c.L("e.g. /exams or /exams/experienced", "যেমন /exams বা /exams/experienced") })}<div class="field third"></div>
+    ${fld("popup_title_en", c.L("Headline (English)", "শিরোনাম (ইংরেজি)"), s.popup_title_en)}${fld("popup_title_bn", c.L("Headline (Bengali)", "শিরোনাম (বাংলা)"), s.popup_title_bn)}
+    ${fld("popup_text_en", c.L("Text (English)", "লেখা (ইংরেজি)"), s.popup_text_en, { rows: 2 })}${fld("popup_text_bn", c.L("Text (Bengali)", "লেখা (বাংলা)"), s.popup_text_bn, { rows: 2 })}
+    ${fld("popup_features_en", c.L("Feature list (English, one per line)", "ফিচারের তালিকা (ইংরেজি, প্রতি লাইনে একটি)"), s.popup_features_en, { rows: 4 })}${fld("popup_features_bn", c.L("Feature list (Bengali, one per line)", "ফিচারের তালিকা (বাংলা, প্রতি লাইনে একটি)"), s.popup_features_bn, { rows: 4 })}
+    ${fld("popup_cta_en", c.L("Button text (English)", "বাটনের লেখা (ইংরেজি)"), s.popup_cta_en)}${fld("popup_cta_bn", c.L("Button text (Bengali)", "বাটনের লেখা (বাংলা)"), s.popup_cta_bn)}`)}
+  ${section(c.L("Procurement quotes (moving strip on the home page)", "প্রকিউরমেন্ট বাণী (হোমপেজে চলমান পটি)"), c.L("One quote per line. Leave empty or switch off to hide the strip.", "প্রতি লাইনে একটি বাণী। ফাঁকা রাখলে বা বন্ধ করলে পটি লুকানো থাকবে।"), html`
+    ${sel("quotes_enabled", c.L("Show the strip", "পটি দেখান"), s.quotes_enabled, [["1", c.L("Yes", "হ্যাঁ")], ["0", c.L("No", "না")]], { third: true })}<div class="field third"></div><div class="field third"></div>
+    ${fld("quotes_en", c.L("Quotes (English)", "বাণী (ইংরেজি)"), s.quotes_en, { rows: 7 })}${fld("quotes_bn", c.L("Quotes (Bengali)", "বাণী (বাংলা)"), s.quotes_bn, { rows: 7 })}`)}
   ${section(c.L("Payments (bKash / Nagad)", "পেমেন্ট (bKash / Nagad)"), c.L("Buyers see these numbers and send money with \"Send Money\". Leave a number empty to hide that method.", "ক্রেতারা এই নম্বরগুলো দেখে \"Send Money\" করবেন। কোনো নম্বর ফাঁকা রাখলে সেই পদ্ধতি লুকানো থাকবে।"), html`
     ${fld("pay_bkash_number", c.L("bKash number", "bKash নম্বর"), s.pay_bkash_number, { third: true, attrs: 'placeholder="01XXXXXXXXX"' })}
     ${sel("pay_bkash_type", c.L("bKash account type", "bKash অ্যাকাউন্টের ধরন"), s.pay_bkash_type, [["Personal", "Personal"], ["Merchant", "Merchant"], ["Agent", "Agent"]], { third: true })}<div class="field third"></div>
@@ -891,6 +903,10 @@ async function settingsSave(c) {
   if (values.whatsapp_url && !WHATSAPP_RE.test(values.whatsapp_url)) return c.redirect(errBack("/admin/settings", c.L("The WhatsApp link must look like https://chat.whatsapp.com/XXXXXXXX", "WhatsApp লিংক এমন হতে হবে: https://chat.whatsapp.com/XXXXXXXX")));
   for (const k of ["pay_bkash_number", "pay_nagad_number"]) if (values[k]) values[k] = values[k].replace(/[\s-]/g, "");
   for (const k of ["mail_from_email", "notify_email", "contact_email"]) if (values[k] && !isEmail(values[k])) return c.redirect(errBack("/admin/settings", c.L("Check the email addresses.", "ইমেইল ঠিকানাগুলো যাচাই করুন।")));
+  if (values.popup_cta_url !== undefined) {
+    if (!values.popup_cta_url) values.popup_cta_url = "/exams";
+    else if (!/^(\/(?!\/)|https:\/\/)/.test(values.popup_cta_url)) return c.redirect(errBack("/admin/settings", c.L("The pop-up button link must start with / or https://", "পপ-আপ বাটনের লিংক / বা https:// দিয়ে শুরু হতে হবে")));
+  }
   values.default_lang = values.default_lang === "bn" ? "bn" : "en";
   await saveSettings(c.env, values);
   return c.redirect(back("/admin/settings", "saved"));
@@ -934,6 +950,7 @@ async function courseEdit(c) {
     ${fld("schedule_en", c.L("Schedule (English), e.g. Fridays 8–10 pm, from 7 Nov", "সময়সূচি (ইংরেজি)"), k.schedule_en)}${fld("schedule_bn", c.L("Schedule (Bengali)", "সময়সূচি (বাংলা), যেমন প্রতি শুক্রবার রাত ৮–১০টা"), k.schedule_bn)}
     ${fld("duration", c.L("Duration, e.g. 6 weeks · 12 lessons", "সময়কাল, যেমন ৬ সপ্তাহ · ১২টি ক্লাস"), k.duration, { third: true })}
     ${fld("sort", c.L("Order (smaller first)", "ক্রম (ছোট সংখ্যা আগে)"), k.sort, { type: "number", third: true })}
+    ${sel("section", c.L("Also show in", "এখানেও দেখান"), k.section || "", [["", c.L("Courses only", "শুধু কোর্স")], ["negotiation", c.L("Negotiation Guru", "নেগোসিয়েশন গুরু")], ["ai", c.L("Procurement AI", "প্রকিউরমেন্ট এআই")]], { third: true })}
     <div class="field third"></div>
     ${fld("body_en", c.L("Public description (English, Markdown) — what students will learn", "সবার জন্য বিবরণ (ইংরেজি, Markdown) — কী শিখবেন"), k.body_en, { rows: 8 })}
     ${fld("body_bn", c.L("Public description (Bengali, Markdown)", "সবার জন্য বিবরণ (বাংলা, Markdown)"), k.body_bn, { rows: 8 })}
@@ -971,6 +988,7 @@ async function courseSave(c) {
     if (old.thumb_id && old.thumb_id !== thumb) await deleteFile(c.env, old.thumb_id);
     if (old.slug !== slug) await run(c.env, "UPDATE entitlements SET item_ref=? WHERE item_type='course' AND item_ref=?", slug, old.slug);
   }
+  await run(c.env, "UPDATE courses SET section=? WHERE id=?", ["negotiation", "ai"].includes(f.get("section")) ? f.get("section") : "", id);
   return c.redirect(back(`/admin/courses/${id}`, "saved"));
 }
 async function courseDelete(c) {
