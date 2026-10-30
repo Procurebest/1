@@ -34,7 +34,7 @@ export default {
   "courses.schedule": ["Schedule", "সময়সূচি"],
   "courses.duration": ["Duration", "সময়কাল"],
   "courses.content": ["Course content", "কোর্সের কনটেন্ট"],
-  "courses.enrolled": ["You are enrolled. The course content is below.", "করে এনরোল হরার জঞ্জ অভিনন্দন। কোর্সের ডিটেইলস নিচে।দেখুন"],
+  "courses.enrolled": ["You are enrolled. The course content is below.", "করে এনরোল হরার জন্য অভিনন্দন। কোর্সের ডিটেইলস নিচ দেখুন"],
   "courses.locked": ["The lessons and class links appear here after enrolment.", "কোর্স এনরোল এর পরে ক্লাসের লিঙ্ক এখানে দেখা যাবে।"],
   "courses.none_kind": ["No courses in this group yet.", "এই গ্রুপে এখনো কোনো কোর্স নেই।"],
   "section.negotiation.title": ["Negotiation Guru", "নেগোসিয়েশন গুরু"],
