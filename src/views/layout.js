@@ -1,12 +1,12 @@
 // Public site layout — the same header, footer and design as the original ProcureBest.
 import { html, raw, jsonScript } from "../lib/util.js";
 import { icon } from "./icons.js";
-import { whatsapp } from "../lib/settings.js";
+import { whatsapp, WHATSAPP_RE } from "../lib/settings.js";
 import { calcList } from "../lib/calclist.js";
 import { tr } from "../../public/js/calc/defs.js";
 import { all } from "../lib/db.js";
 
-export const ASSET_V = "6";
+export const ASSET_V = "8";
 const asset = (p) => `${p}?v=${ASSET_V}`;
 export const LIB_TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
 
@@ -49,7 +49,7 @@ export async function layout(c, { title, description, body, pageType = "page", n
   const freeBadge = html`<span class="free-blink">${c.t("nav.free")}</span>`;
   const navLink = (item, i) => html`<li class="${item.sub ? "has-sub" : ""}">
     <a href="${c.p(item.href)}" ${isOn(item) ? raw('aria-current="page"') : ""} ${item.sub ? raw(`aria-haspopup="true" aria-controls="sub-${i}"`) : ""}>${item.label}${item.free ? html` ${freeBadge}` : ""}${item.sub ? html`<svg class="caret" width="9" height="6" viewBox="0 0 9 6" aria-hidden="true"><path d="M1 1l3.5 3.5L8 1" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>` : ""}</a>
-    ${item.sub ? html`<div class="sub" id="sub-${i}"><ul>${item.sub.map(([p, l, badge]) => html`<li><a href="${c.p(p)}">${l}${badge ? html` <span class="tag ok">${badge}</span>` : ""}</a></li>`)}</ul></div>` : ""}
+    ${item.sub ? html`<div class="sub" id="sub-${i}"><ul>${item.sub.map(([p, l, badge]) => html`<li><a href="${c.p(p)}">${l}${badge ? html` <span class="tag ok free-tag">${badge}</span>` : ""}</a></li>`)}</ul></div>` : ""}
   </li>`;
   const wa = whatsapp(s, lang);
   const gateCfg = { lang, email: v ? v.email : null, verified: v ? v.verified : false, closedNote: c.t("gate.closed_note") };
@@ -271,4 +271,41 @@ export function errorPage(c, status, title, text) {
       <div class="row" style="justify-content:center;margin-top:24px"><a class="btn btn-primary" href="${c.p("/")}">${c.t("error.go_home")}</a>
       <a class="btn btn-secondary" href="${c.p("/calculators")}">${c.t("nav.calculators")}</a></div></div></section>`,
   });
+}
+
+// ------------------------------------------------------------------ social icons & share button
+// Social media icons under the home-page buttons. Links come from Admin → Settings; an icon is shown
+// only when its link is filled in. Brand logos come from the free Font Awesome icon set.
+const SOCIALS = [
+  ["youtube", "social_youtube", "YouTube", "fa-youtube"],
+  ["facebook", "social_facebook", "Facebook", "fa-facebook-f"],
+  ["linkedin", "social_linkedin", "LinkedIn", "fa-linkedin-in"],
+  ["x", "social_x", "X (Twitter)", "fa-x-twitter"],
+  ["whatsapp", "whatsapp_url", "WhatsApp", "fa-whatsapp"],
+];
+export function socialRow(c, s) {
+  const list = SOCIALS.map(([key, k, name, fa]) => [key, String(s[k] || "").trim(), name, fa])
+    .filter(([key, url]) => (key === "whatsapp" ? s.whatsapp_enabled === "1" && WHATSAPP_RE.test(url) : /^https:\/\/\S+$/.test(url)));
+  if (!list.length) return "";
+  return html`<ul class="social-row" aria-label="${c.L("ProcureBest on social media", "সোশ্যাল মিডিয়ায় ProcureBest")}">${list.map(([key, url, name, fa]) => html`<li><a class="social-ic s-${key}" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${name}" title="${name}"><i class="fa-brands ${fa}" aria-hidden="true"></i></a></li>`)}</ul>`;
+}
+export const FA_CSS = raw(`<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/fontawesome.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/brands.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">`);
+
+// Share button (share symbol) for article, book and template pages. Each option can be switched
+// on or off in Admin → Settings → Share button.
+const SHARE_OPTIONS = [["facebook", "share_facebook", "Facebook"], ["linkedin", "share_linkedin", "LinkedIn"], ["x", "share_x", "X (Twitter)"],
+  ["whatsapp", "share_whatsapp", "WhatsApp"], ["email", "share_email", ""], ["copy", "share_copy", ""]];
+export function shareMenu(c, s, url, title) {
+  const on = SHARE_OPTIONS.filter(([, k]) => s[k] !== "0");
+  if (!on.length) return "";
+  const u = encodeURIComponent(url), t = encodeURIComponent(title || "");
+  const href = { facebook: `https://www.facebook.com/sharer/sharer.php?u=${u}`, linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${u}`,
+    x: `https://x.com/intent/tweet?url=${u}&text=${t}`, whatsapp: `https://wa.me/?text=${t}%20${u}`, email: `mailto:?subject=${t}&body=${t}%0A%0A${u}` };
+  return html`<div class="share-menu" data-share-menu>
+    <button type="button" class="btn btn-ghost btn-sm share-btn" aria-haspopup="true" aria-expanded="false" data-share-toggle>${icon("share", 16)} ${c.L("Share", "শেয়ার করুন")}</button>
+    <div class="share-pop" data-share-pop hidden>${on.map(([key, , name]) => (key === "copy"
+      ? html`<button type="button" class="share-opt" data-share-copylink data-url="${url}" data-done="${c.L("Link copied", "লিংক কপি হয়েছে")}">${icon("link", 16)}<span>${c.L("Copy link", "লিংক কপি করুন")}</span></button>`
+      : html`<a class="share-opt" href="${href[key]}"${key === "email" ? "" : raw(' target="_blank" rel="noopener noreferrer"')}>${icon(key === "email" ? "mail" : "external", 16)}<span>${key === "email" ? c.L("Email", "ইমেইল") : name}</span></a>`))}</div>
+  </div>`;
 }

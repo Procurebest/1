@@ -10,7 +10,7 @@ import { ownsFile, pendingOrder } from "../lib/orders.js";
 import { qrSvg } from "../lib/qr.js";
 import { recordEmail } from "./api.js";
 
-const tagFor = (c, lv) => (lv.price > 0 ? html`<span class="tag dark">${c.t("exam.paid")} · ${c.money(lv.price)}</span>` : html`<span class="tag ok">${c.t("exam.free")}</span>`);
+const tagFor = (c, lv) => (lv.price > 0 ? html`<span class="tag dark">${c.t("exam.paid")} · ${c.money(lv.price)}</span>` : html`<span class="tag ok free-tag">${c.t("exam.free")}</span>`);
 
 // ------------------------------------------------------------------ exams index
 async function examsIndex(c) {

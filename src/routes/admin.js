@@ -4,7 +4,7 @@ import { html, raw, jsonScript, nowIso, isoPlus, DAY, clip, slugify, toInt, sha2
 import { one, all, run, scalar, rateLimit } from "../lib/db.js";
 import { icon } from "../views/icons.js";
 import { ASSET_V } from "../views/layout.js";
-import { loadSettings, saveSettings, DEFAULTS, WHATSAPP_RE, paymentMethods } from "../lib/settings.js";
+import { loadSettings, saveSettings, DEFAULTS, WHATSAPP_RE, paymentMethods, SOCIAL_LINKS, SHARE_KEYS } from "../lib/settings.js";
 import { mailConfigured, sendMail, emailLayout } from "../lib/mail.js";
 import { createFile, getFile, putChunk, completeFile, deleteFile, storageUsed, maxFileSize, ext, IMAGE_EXT, storageKind, expectedChunkSize } from "../lib/files.js";
 import { approveOrder, rejectOrder } from "../lib/orders.js";
@@ -108,14 +108,14 @@ function pager(c, page, total, base) {
   return html`<div class="row" style="margin-top:16px;justify-content:center">${page > 1 ? html`<a class="btn btn-ghost btn-sm" href="${u(page - 1)}">${icon("arrow-left", 14)}</a>` : ""}
     <span class="small muted">${c.d(page)} / ${c.d(pages)}</span>${page < pages ? html`<a class="btn btn-ghost btn-sm" href="${u(page + 1)}">${icon("arrow-right", 14)}</a>` : ""}</div>`;
 }
-function uploadField(c, { name, label, file, accept, kind, help }) {
-  return html`<div class="field full" data-upload data-kind="${kind}" data-accept="${accept}">
+function uploadField(c, { name, label, file, accept, kind, help, spec }) {
+  return html`<div class="field full" data-upload data-kind="${kind}" data-accept="${accept}"${spec ? raw(` data-img-w="${spec.w}" data-img-h="${spec.h || 0}" data-img-kb="${spec.kb}" data-img-fit="${spec.fit}"`) : ""}>
     <label>${label}</label>
     <div class="upload-box">
       <div class="row between" style="gap:10px"><span data-upload-name class="small">${file ? html`${icon("file", 15)} ${file.name} · ${fileSize(c, file.size)}` : html`<span class="muted">${c.L("No file yet", "এখনো কোনো ফাইল নেই")}</span>`}</span>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer">${icon("upload", 15)} ${file ? c.L("Replace", "বদলান") : c.L("Choose file", "ফাইল বেছে নিন")}<input type="file" accept="${accept}" data-upload-input hidden></label></div>
       <div class="progress" data-upload-progress hidden style="max-width:none;margin-top:10px"><i style="width:0%"></i></div>
-      <span class="help" data-upload-status>${help || ""}</span>
+      ${help ? html`<span class="help upload-help">${help}</span>` : ""}<span class="help" data-upload-status></span>${spec ? html`<span class="help img-check" data-img-check hidden></span>` : ""}
     </div>
     <input type="hidden" name="${name}" value="${file ? file.id : ""}" data-upload-value>
     ${file ? html`<label class="check small" style="margin-top:8px"><input type="checkbox" name="${name}_remove" value="1"> ${c.L("Remove this file", "এই ফাইলটি সরিয়ে দিন")}</label>` : ""}
@@ -123,11 +123,12 @@ function uploadField(c, { name, label, file, accept, kind, help }) {
 }
 
 // "Insert image" button under a Markdown box: uploads a picture and adds ![](/media/ID) at the cursor.
-const imageInsert = (c, target) => html`<div class="md-image" data-md-image data-target="${target}">
+const imageInsert = (c, target) => html`<div class="md-image" data-md-image data-target="${target}" data-img-w="1200" data-img-h="0" data-img-kb="300" data-img-fit="width">
   <label class="btn btn-ghost btn-sm" style="cursor:pointer">${icon("upload", 14)} ${c.L("Insert image", "ছবি যোগ করুন")}<input type="file" accept=".png,.jpg,.jpeg,.webp" hidden></label>
-  <span class="tiny muted" data-md-image-status>${c.L("PNG, JPG or WebP up to 3 MB. It is placed where the cursor is.", "PNG, JPG বা WebP, সর্বোচ্চ ৩ MB। কার্সর যেখানে, ছবি সেখানে বসবে।")}</span></div>`;
-const imageField = async (c, name, label, id, help) => uploadField(c, { name, label, file: id ? await getFile(c.env, id) : null, kind: "cover", accept: ".png,.jpg,.jpeg,.webp",
-  help: help || c.L("PNG, JPG or WebP, under 1 MB works best.", "PNG, JPG বা WebP, ১ MB-এর কম হলে ভালো।") });
+  <span class="tiny muted">${c.L("Recommended: 1200 px wide (any height), JPG or WebP, under 300 KB (max 3 MB). Pictures fill the text width, so every picture looks the same size. It is placed where the cursor is.", "সুপারিশ: ১২০০ পিক্সেল চওড়া (উচ্চতা যেকোনো), JPG বা WebP, ৩০০ KB-এর কম (সর্বোচ্চ ৩ MB)। ছবি লেখার পুরো প্রস্থে বসে, তাই সব ছবি একই মাপে দেখায়। কার্সর যেখানে, ছবি সেখানে বসবে।")}</span>
+  <span class="tiny muted" data-md-image-status></span><span class="tiny img-check" data-img-check hidden></span></div>`;
+const imageField = async (c, name, label, id, help, spec) => uploadField(c, { name, label, file: id ? await getFile(c.env, id) : null, kind: "cover", accept: ".png,.jpg,.jpeg,.webp",
+  help: help || c.L("PNG, JPG or WebP, under 1 MB works best.", "PNG, JPG বা WebP, ১ MB-এর কম হলে ভালো।"), spec });
 const checkUpload = async (c, id) => !id || Boolean(await one(c.env, "SELECT id FROM files WHERE id=? AND complete=1", id));
 
 // ------------------------------------------------------------------ auth
@@ -255,7 +256,7 @@ async function libraryEdit(c) {
     ${fld("body_bn", c.L("Full description (Bengali, Markdown)", "পূর্ণ বিবরণ (বাংলা, Markdown)"), it.body_bn, { rows: 8 })}
     ${uploadField(c, { name: "file_id", label: c.L("Downloadable file", "ডাউনলোডের ফাইল"), file, kind: "file", accept: FILE_EXT.map((e) => "." + e).join(","),
       help: c.L(`PDF, Excel, Word, PowerPoint, ZIP or EPUB — up to ${fileSize(c, maxFileSize(c.env))}.`, `PDF, Excel, Word, PowerPoint, ZIP বা EPUB — সর্বোচ্চ ${fileSize(c, maxFileSize(c.env))}।`) })}
-    ${uploadField(c, { name: "cover_id", label: c.L("Cover image (optional, for books)", "কভার ছবি (ঐচ্ছিক, বইয়ের জন্য)"), file: cover, kind: "cover", accept: ".png,.jpg,.jpeg,.webp", help: c.L("PNG, JPG or WebP, ideally portrait, under 1 MB.", "PNG, JPG বা WebP, লম্বালম্বি হলে ভালো, ১ MB-এর কম।") })}
+    ${uploadField(c, { name: "cover_id", label: c.L("Cover image (optional, for books)", "কভার ছবি (ঐচ্ছিক, বইয়ের জন্য)"), file: cover, kind: "cover", accept: ".png,.jpg,.jpeg,.webp", help: c.L("Recommended: 600 × 900 px (portrait 2:3), JPG or WebP, 80–200 KB (max 1 MB). The cover always sits in the same 2:3 frame, so it never looks bigger or smaller on the site.", "সুপারিশ: ৬০০ × ৯০০ পিক্সেল (লম্বালম্বি ২:৩), JPG বা WebP, ৮০–২০০ KB (সর্বোচ্চ ১ MB)। কভার সবসময় একই ২:৩ ফ্রেমে বসে, তাই সাইটে ছোট-বড় দেখায় না।"), spec: { w: 600, h: 900, kb: 200, fit: "contain" } })}
     ${uploadField(c, { name: "preview_id", label: c.L("PDF preview (optional, public)", "পিডিএফ প্রিভিউ (ঐচ্ছিক, সবার জন্য খোলা)"), file: previewFile, kind: "preview", accept: ".pdf",
       help: c.L("A few sample pages as a separate PDF. Anyone can read it on the item page without an email — do not upload the full paid book here.", "কয়েকটি নমুনা পাতা আলাদা পিডিএফ হিসেবে। যে কেউ ইমেইল ছাড়াই আইটেমের পাতায় পড়তে পারবে — পুরো পেইড বই এখানে দেবেন না।") })}
     ${fld("slug", c.L("Web address (slug)", "ওয়েব ঠিকানা (slug)"), it.slug, { help: c.L("Leave empty to create it from the English title.", "ফাঁকা রাখলে ইংরেজি শিরোনাম থেকে তৈরি হবে।") })}
@@ -381,7 +382,7 @@ async function postEdit(c) {
     ${fld("title_bn", c.L("Title (Bengali)", "শিরোনাম (বাংলা)"), p.title_bn)}
     ${fld("summary_en", c.L("Summary (English)", "সারসংক্ষেপ (ইংরেজি)"), p.summary_en, { rows: 2 })}
     ${fld("summary_bn", c.L("Summary (Bengali)", "সারসংক্ষেপ (বাংলা)"), p.summary_bn, { rows: 2 })}
-    ${await imageField(c, "cover_id", c.L("Cover picture (shown on the card and at the top of the article)", "কভার ছবি (কার্ডে ও লেখার ওপরে দেখাবে)"), p.cover_id, c.L("Landscape picture, about 1600 × 900 px, under 1 MB.", "আড়াআড়ি ছবি, প্রায় ১৬০০ × ৯০০ পিক্সেল, ১ MB-এর কম।"))}
+    ${await imageField(c, "cover_id", c.L("Cover picture (shown on the card and at the top of the article)", "কভার ছবি (কার্ডে ও লেখার ওপরে দেখাবে)"), p.cover_id, c.L("Recommended: 1600 × 900 px (landscape 16:9), JPG or WebP, 150–300 KB (max 1 MB). Other shapes are trimmed to 16:9 from the centre.", "সুপারিশ: ১৬০০ × ৯০০ পিক্সেল (আড়াআড়ি ১৬:৯), JPG বা WebP, ১৫০–৩০০ KB (সর্বোচ্চ ১ MB)। অন্য মাপের ছবি মাঝখান থেকে ১৬:৯ মাপে কাটা হয়।"), { w: 1600, h: 900, kb: 300, fit: "cover" })}
     ${fld("body_en", c.L("Article (English, Markdown)", "লেখা (ইংরেজি, Markdown)"), p.body_en, { rows: 18, full: true, help: c.L("## Heading, ### Subheading, - list, **bold**, [link text](https://…), > quote, tables with | pipes |.", "## শিরোনাম, ### উপশিরোনাম, - তালিকা, **মোটা**, [লিংকের লেখা](https://…), > উদ্ধৃতি, | পাইপ | দিয়ে টেবিল।") })}
     <div class="field full" style="margin-top:-10px">${imageInsert(c, "f-body_en")}</div>
     ${fld("body_bn", c.L("Article (Bengali, Markdown)", "লেখা (বাংলা, Markdown)"), p.body_bn, { rows: 18, full: true, help: c.L("If empty, the English article is shown with a note.", "ফাঁকা থাকলে নোটসহ ইংরেজি লেখাটি দেখানো হবে।") })}
@@ -486,7 +487,7 @@ async function examsAdmin(c) {
       ${fld("free_attempts_per_day", c.L("Attempts per day (free exams)", "দিনে কতবার (ফ্রি)"), lv.free_attempts_per_day, { type: "number", third: true, attrs: 'min="1" max="20"' })}
       ${sel("certificate", c.L("Certificate when passed", "পাস করলে সার্টিফিকেট"), lv.certificate, [[1, c.L("Yes", "হ্যাঁ")], [0, c.L("No — result can be shared", "না — শুধু ফলাফল শেয়ার")]], { third: true })}
       ${fld("sort", c.L("Order (smaller first)", "ক্রম (ছোট সংখ্যা আগে)"), lv.sort, { type: "number", third: true })}
-      ${await imageField(c, "thumb_id", c.L("Thumbnail picture (optional)", "থাম্বনেইল ছবি (ঐচ্ছিক)"), lv.thumb_id, c.L("Landscape picture, about 1200 × 675 px.", "আড়াআড়ি ছবি, প্রায় ১২০০ × ৬৭৫ পিক্সেল।"))}
+      ${await imageField(c, "thumb_id", c.L("Thumbnail picture (optional)", "থাম্বনেইল ছবি (ঐচ্ছিক)"), lv.thumb_id, c.L("Recommended: 1200 × 675 px (16:9), JPG or WebP, 100–200 KB. Cards show the middle band, so keep text in the centre.", "সুপারিশ: ১২০০ × ৬৭৫ পিক্সেল (১৬:৯), JPG বা WebP, ১০০–২০০ KB। কার্ডে ছবির মাঝের অংশ দেখায়, তাই লেখা মাঝখানে রাখুন।"), { w: 1200, h: 675, kb: 200, fit: "cover" })}
     </div><div class="form-actions"><button class="btn btn-primary" type="submit">${c.L("Save", "সেভ করুন")}</button>
       ${lv.published ? html`<a class="link small" href="/${c.lang}/exams/${lv.code}" target="_blank">${c.L("View on site", "সাইটে দেখুন")} ${icon("arrow-right", 14)}</a>` : ""}</div></form>
     ${!lv.attempts ? html`<form method="post" action="/admin/exams/${lv.code}/delete" style="margin:-8px 0 22px" data-confirm="${c.L("Delete this exam and all its questions?", "পরীক্ষা ও এর সব প্রশ্ন মুছে ফেলবেন?")}">${csrf}<button class="btn btn-ghost btn-sm" style="color:var(--err)">${icon("trash", 14)} ${c.L("Delete exam", "পরীক্ষা মুছুন")}</button></form>`
@@ -879,6 +880,10 @@ async function settingsPage(c) {
     ${sel("whatsapp_enabled", c.L("Show the button", "বাটন দেখান"), s.whatsapp_enabled, [["1", c.L("Yes", "হ্যাঁ")], ["0", c.L("No", "না")]], { third: true })}<div class="field third"></div><div class="field third"></div>
     ${fld("whatsapp_label_en", c.L("Button text (English)", "বাটনের লেখা (ইংরেজি)"), s.whatsapp_label_en)}${fld("whatsapp_label_bn", c.L("Button text (Bengali)", "বাটনের লেখা (বাংলা)"), s.whatsapp_label_bn)}
     ${fld("whatsapp_note_en", c.L("Note under the button (English)", "বাটনের নিচের নোট (ইংরেজি)"), s.whatsapp_note_en)}${fld("whatsapp_note_bn", c.L("Note under the button (Bengali)", "বাটনের নিচের নোট (বাংলা)"), s.whatsapp_note_bn)}`)}
+  ${section(c.L("Social media links (icons on the home page)", "সোশ্যাল মিডিয়া লিংক (হোমপেজের আইকন)"), c.L("Paste the full address of each page. An icon appears under the home-page buttons only when its link is filled in. The WhatsApp icon uses the WhatsApp group link above.", "প্রতিটি পেজের পুরো ঠিকানা পেস্ট করুন। যে লিংক দেওয়া থাকবে, শুধু সেই আইকন হোমপেজের বাটনের নিচে দেখাবে। WhatsApp আইকন ওপরের WhatsApp গ্রুপ লিংক ব্যবহার করে।"), html`
+    ${SOCIAL_LINKS.map(([k, name, , example]) => fld(k, c.L(`${name} link`, `${name} লিংক`), s[k], { attrs: `placeholder="${example}" inputmode="url"` }))}`)}
+  ${section(c.L("Share button (articles, books and templates)", "শেয়ার বাটন (আর্টিকেল, বই ও টেমপ্লেট)"), c.L("Tick the options visitors see when they press Share. Untick all of them to hide the Share button.", "ভিজিটর শেয়ার চাপলে কোন অপশনগুলো দেখবেন, টিক দিয়ে বেছে নিন। সবগুলোর টিক তুলে দিলে শেয়ার বাটন লুকানো থাকবে।"), html`
+    <input type="hidden" name="share_form" value="1"><div class="field full"><div class="share-checks">${[["share_facebook", "Facebook"], ["share_linkedin", "LinkedIn"], ["share_x", "X (Twitter)"], ["share_whatsapp", "WhatsApp"], ["share_email", c.L("Email", "ইমেইল")], ["share_copy", c.L("Copy link", "লিংক কপি")]].map(([k, label]) => html`<label class="check"><input type="checkbox" name="${k}" value="1" ${s[k] !== "0" ? raw("checked") : ""}> <span>${label}</span></label>`)}</div></div>`)}
   ${section(c.L("Email", "ইমেইল"), mailOk ? c.L("Email sending is working: addresses are verified with a one-time link.", "ইমেইল পাঠানো চালু আছে: এককালীন লিংক দিয়ে ঠিকানা যাচাই হয়।")
     : c.L(`Not active yet${c.env.BREVO_API_KEY ? " — add the sender address below" : " — the BREVO_API_KEY secret is missing"}. Until then email addresses are collected without verification.`, `এখনো চালু হয়নি${c.env.BREVO_API_KEY ? " — নিচে প্রেরকের ঠিকানা দিন" : " — BREVO_API_KEY secret নেই"}। ততক্ষণ ইমেইল যাচাই ছাড়া সংগ্রহ হবে।`), html`
     ${fld("mail_from_email", c.L("Send emails from (verified in Brevo)", "যে ঠিকানা থেকে ইমেইল যাবে (Brevo-তে যাচাইকৃত)"), s.mail_from_email, { type: "email", attrs: 'placeholder="no-reply@procurebest.com"' })}
@@ -901,6 +906,8 @@ async function settingsSave(c) {
   const values = {};
   for (const k of Object.keys(DEFAULTS)) if (f.has(k)) values[k] = clip(f.get(k), 2000);
   if (values.whatsapp_url && !WHATSAPP_RE.test(values.whatsapp_url)) return c.redirect(errBack("/admin/settings", c.L("The WhatsApp link must look like https://chat.whatsapp.com/XXXXXXXX", "WhatsApp লিংক এমন হতে হবে: https://chat.whatsapp.com/XXXXXXXX")));
+  for (const [k, name, re, example] of SOCIAL_LINKS) if (values[k] && !re.test(values[k])) return c.redirect(errBack("/admin/settings", c.L(`The ${name} link must look like ${example}`, `${name} লিংক এমন হতে হবে: ${example}`)));
+  if (f.has("share_form")) for (const k of SHARE_KEYS) values[k] = f.get(k) ? "1" : "0";
   for (const k of ["pay_bkash_number", "pay_nagad_number"]) if (values[k]) values[k] = values[k].replace(/[\s-]/g, "");
   for (const k of ["mail_from_email", "notify_email", "contact_email"]) if (values[k] && !isEmail(values[k])) return c.redirect(errBack("/admin/settings", c.L("Check the email addresses.", "ইমেইল ঠিকানাগুলো যাচাই করুন।")));
   if (values.popup_cta_url !== undefined) {
@@ -946,7 +953,7 @@ async function courseEdit(c) {
     ${fld("price", c.L("Price in taka (0 = free)", "মূল্য টাকায় (০ = ফ্রি)"), k.price, { type: "number", third: true, attrs: 'min="0" step="1"' })}
     ${fld("title_en", c.L("Title (English)", "শিরোনাম (ইংরেজি)"), k.title_en, { required: true })}${fld("title_bn", c.L("Title (Bengali)", "শিরোনাম (বাংলা)"), k.title_bn)}
     ${fld("summary_en", c.L("Short description (English)", "সংক্ষিপ্ত বিবরণ (ইংরেজি)"), k.summary_en, { rows: 2 })}${fld("summary_bn", c.L("Short description (Bengali)", "সংক্ষিপ্ত বিবরণ (বাংলা)"), k.summary_bn, { rows: 2 })}
-    ${await imageField(c, "thumb_id", c.L("Thumbnail picture", "থাম্বনেইল ছবি"), k.thumb_id, c.L("Landscape picture, about 1280 × 720 px, under 1 MB.", "আড়াআড়ি ছবি, প্রায় ১২৮০ × ৭২০ পিক্সেল, ১ MB-এর কম।"))}
+    ${await imageField(c, "thumb_id", c.L("Thumbnail picture", "থাম্বনেইল ছবি"), k.thumb_id, c.L("Recommended: 1280 × 720 px (16:9), JPG or WebP, 100–250 KB (max 1 MB).", "সুপারিশ: ১২৮০ × ৭২০ পিক্সেল (১৬:৯), JPG বা WebP, ১০০–২৫০ KB (সর্বোচ্চ ১ MB)।"), { w: 1280, h: 720, kb: 250, fit: "cover" })}
     ${fld("schedule_en", c.L("Schedule (English), e.g. Fridays 8–10 pm, from 7 Nov", "সময়সূচি (ইংরেজি)"), k.schedule_en)}${fld("schedule_bn", c.L("Schedule (Bengali)", "সময়সূচি (বাংলা), যেমন প্রতি শুক্রবার রাত ৮–১০টা"), k.schedule_bn)}
     ${fld("duration", c.L("Duration, e.g. 6 weeks · 12 lessons", "সময়কাল, যেমন ৬ সপ্তাহ · ১২টি ক্লাস"), k.duration, { third: true })}
     ${fld("sort", c.L("Order (smaller first)", "ক্রম (ছোট সংখ্যা আগে)"), k.sort, { type: "number", third: true })}
@@ -1082,7 +1089,7 @@ async function aboutPage(c) {
       <div class="form-grid">
         ${fld("founder_name_en", c.L("Name (English)", "নাম (ইংরেজি)"), s.founder_name_en)}${fld("founder_name_bn", c.L("Name (Bengali)", "নাম (বাংলা)"), s.founder_name_bn)}
         ${fld("founder_title_en", c.L("Title (English), e.g. Procurement professional, 15+ years", "পদবি (ইংরেজি)"), s.founder_title_en)}${fld("founder_title_bn", c.L("Title (Bengali)", "পদবি (বাংলা), যেমন প্রকিউরমেন্ট পেশাজীবী, ১৫+ বছর"), s.founder_title_bn)}
-        ${await imageField(c, "founder_photo_id", c.L("Photo", "ছবি"), s.founder_photo_id, c.L("Square photo, at least 600 × 600 px.", "বর্গাকার ছবি, কমপক্ষে ৬০০ × ৬০০ পিক্সেল।"))}
+        ${await imageField(c, "founder_photo_id", c.L("Photo", "ছবি"), s.founder_photo_id, c.L("Recommended: 600 × 600 px (square 1:1), JPG or WebP, 60–150 KB.", "সুপারিশ: ৬০০ × ৬০০ পিক্সেল (বর্গাকার ১:১), JPG বা WebP, ৬০–১৫০ KB।"), { w: 600, h: 600, kb: 150, fit: "cover" })}
         ${fld("founder_bio_en", c.L("Introduction (English, Markdown)", "পরিচিতি (ইংরেজি, Markdown)"), s.founder_bio_en, { rows: 6 })}${fld("founder_bio_bn", c.L("Introduction (Bengali, Markdown)", "পরিচিতি (বাংলা, Markdown)"), s.founder_bio_bn, { rows: 6 })}
         ${fld("founder_experience_en", c.L("Professional experience (English, Markdown list)", "পেশাগত অভিজ্ঞতা (ইংরেজি, Markdown তালিকা)"), s.founder_experience_en, { rows: 8, help: c.L("One line per role, e.g. - **Head of Procurement**, Company — 2019–present", "প্রতি পদে এক লাইন, যেমন - **হেড অব প্রকিউরমেন্ট**, প্রতিষ্ঠান — ২০১৯–বর্তমান") })}
         ${fld("founder_experience_bn", c.L("Professional experience (Bengali, Markdown list)", "পেশাগত অভিজ্ঞতা (বাংলা, Markdown তালিকা)"), s.founder_experience_bn, { rows: 8 })}

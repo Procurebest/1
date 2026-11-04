@@ -49,6 +49,18 @@ export const DEFAULTS = {
   founder_photo_id: "",
   // Career roadmap figures (JSON, edited in Admin → Calculators)
   roadmap_json: "",
+  // Social media links shown as icons on the home page (Admin → Settings). WhatsApp uses whatsapp_url.
+  social_youtube: "",
+  social_facebook: "",
+  social_linkedin: "",
+  social_x: "",
+  // Share button on article, book and template pages: "1" = option shown, "0" = hidden
+  share_facebook: "1",
+  share_linkedin: "1",
+  share_x: "1",
+  share_whatsapp: "1",
+  share_email: "1",
+  share_copy: "1",
   // Show the blinking "Free" badge next to Exams in the menu
   nav_free_badge: "1",
   // Welcome pop-up (Admin → Settings)
@@ -69,6 +81,14 @@ export const DEFAULTS = {
 };
 
 export const WHATSAPP_RE = /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{10,40}$/;
+// [setting, platform, accepted address, example shown in the admin form]
+export const SOCIAL_LINKS = [
+  ["social_youtube", "YouTube", /^https:\/\/(www\.|m\.)?(youtube\.com|youtu\.be)\/\S+$/i, "https://www.youtube.com/@yourchannel"],
+  ["social_facebook", "Facebook", /^https:\/\/(www\.|m\.|web\.)?(facebook\.com|fb\.com|fb\.me)\/\S+$/i, "https://www.facebook.com/yourpage"],
+  ["social_linkedin", "LinkedIn", /^https:\/\/([a-z]{2,3}\.)?linkedin\.com\/\S+$/i, "https://www.linkedin.com/company/yourcompany"],
+  ["social_x", "X (Twitter)", /^https:\/\/(www\.)?(x\.com|twitter\.com)\/\S+$/i, "https://x.com/yourname"],
+];
+export const SHARE_KEYS = ["share_facebook", "share_linkedin", "share_x", "share_whatsapp", "share_email", "share_copy"];
 
 export async function loadSettings(env) {
   const rows = await all(env, "SELECT k, v FROM settings");

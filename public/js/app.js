@@ -317,6 +317,44 @@
     const old = b.textContent; b.textContent = "✓ " + (b.dataset.done || ""); setTimeout(() => { b.textContent = old; }, 2200);
   });
 
+  // Share menu on article, book and template pages (share symbol → list of options)
+  function closeShare(box) {
+    if (!box) return;
+    box.classList.remove("open");
+    const pop = box.querySelector("[data-share-pop]"), tog = box.querySelector("[data-share-toggle]");
+    if (pop) pop.hidden = true;
+    if (tog) tog.setAttribute("aria-expanded", "false");
+  }
+  document.addEventListener("click", async (e) => {
+    const openBox = document.querySelector("[data-share-menu].open");
+    const tog = e.target.closest("[data-share-toggle]");
+    if (tog) {
+      const box = tog.closest("[data-share-menu]"), pop = box.querySelector("[data-share-pop]"), willOpen = pop.hidden;
+      if (openBox && openBox !== box) closeShare(openBox);
+      pop.hidden = !willOpen;
+      box.classList.toggle("open", willOpen);
+      tog.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      if (willOpen) { const first = pop.querySelector("a, button"); if (first) first.focus(); }
+      return;
+    }
+    const copy = e.target.closest("[data-share-copylink]");
+    if (copy) {
+      const url = copy.dataset.url, label = copy.querySelector("span"), old = label.textContent;
+      try { await navigator.clipboard.writeText(url); } catch (x) { window.prompt("", url); return; }
+      label.textContent = "✓ " + (copy.dataset.done || "");
+      setTimeout(() => { label.textContent = old; closeShare(copy.closest("[data-share-menu]")); }, 1600);
+      return;
+    }
+    const link = e.target.closest("a.share-opt");
+    if (link) { setTimeout(() => closeShare(link.closest("[data-share-menu]")), 150); return; }
+    if (openBox && !e.target.closest("[data-share-menu]")) closeShare(openBox);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const openBox = document.querySelector("[data-share-menu].open");
+    if (openBox) { closeShare(openBox); const t = openBox.querySelector("[data-share-toggle]"); if (t) t.focus(); }
+  });
+
   // Print buttons and confirmation prompts
   document.addEventListener("click", (e) => { if (e.target.closest("[data-print]")) window.print(); });
   document.addEventListener("submit", (e) => {

@@ -44,3 +44,11 @@ body.admin { background: var(--surface); font-size: 15px; }
 @media (max-width: 700px) { .q-opt-row { grid-template-columns: 1fr; } }
 a.metric:hover { border-color: #000; }
 .adm-narrow { max-width: 900px; }
+
+/* v7: picture size guidance and share options */
+.upload-box .upload-help, .upload-box [data-upload-status], .upload-box .img-check { display: block; margin-top: 6px; }
+.upload-box [data-upload-status]:empty { display: none; }
+.img-check { color: #8a5a00; font-weight: 500; }
+.img-check.ok { color: var(--ok); }
+.md-image .img-check { display: block; margin-top: 4px; }
+.share-checks { display: flex; flex-wrap: wrap; gap: 10px 24px; }

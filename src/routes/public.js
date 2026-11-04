@@ -1,7 +1,7 @@
 // Public pages: home, calculators, library, blog, career, glossary and info pages.
 import { html, raw, jsonScript, nowIso, paidLeft } from "../lib/util.js";
 import { one, all } from "../lib/db.js";
-import { layout, pageHead, waButton, certBadge, LIB_TYPES } from "../views/layout.js";
+import { layout, pageHead, waButton, certBadge, LIB_TYPES, socialRow, FA_CSS, shareMenu } from "../views/layout.js";
 import { calcList, ROADMAP } from "../lib/calclist.js";
 import { calcOff } from "../lib/settings.js";
 import { mailConfigured } from "../lib/mail.js";
@@ -85,6 +85,7 @@ async function home(c) {
   const lang = c.lang;
   const calcs = calcList(s);
   const v = await c.readyVisitor();
+  const social = socialRow(c, s);
   const body = html`
 <section class="hero">
   <div class="wrap">
@@ -94,7 +95,9 @@ async function home(c) {
     <div class="row">
       <a class="btn btn-primary btn-lg" href="${c.p("/calculators")}">${c.t("home.cta_calculators")}</a>
       <a class="btn btn-secondary btn-lg" href="${c.p("/library")}">${c.t("home.cta_library")}</a>
+      <a class="btn btn-secondary btn-lg" href="${c.p("/career")}">${c.L("Career Goal", "ক্যারিয়ার গোল")}</a>
     </div>
+    ${social}
     ${heroArt(c)}
   </div>
 </section>
@@ -204,7 +207,7 @@ ${items.length ? html`<section class="section">
   </div>
 </section>
 `;
-  return c.html(await layout(c, { body, pageType: "home", gate: true }));
+  return c.html(await layout(c, { body, pageType: "home", gate: true, head: social ? FA_CSS : "" }));
 }
 
 function calcCard(c, k) {
@@ -238,6 +241,69 @@ async function calcDirectory(c) {
   const body = html`${pageHead(c, { title: c.t("calc.dir_title"), lead: c.t("calc.dir_lead") })}
   <section class="section-sm" style="padding-top:0"><div class="wrap"><div class="grid ${calcs.length === 4 ? "grid-2" : "grid-3"}">${calcs.map((k) => calcCard(c, k))}</div></div></section>`;
   return c.html(await layout(c, { title: c.t("calc.dir_title"), description: c.t("calc.dir_lead"), body }));
+}
+
+// "How to use" steps with the worked example beside them (TCO calculator).
+function howtoSection(c, def) {
+  if (!def.howto) return "";
+  const L = (o) => tr(o, c.lang);
+  return html`<section class="section-sm calc-howto no-print" id="how-to-use">
+  <div class="wrap"><div class="howto-grid">
+    <div>
+      <h2 class="howto-h">${c.L("How to use this calculator", "ক্যালকুলেটর কীভাবে চালাবেন")}</h2>
+      <ol class="steps">${def.howto.map((x) => html`<li>${L(x)}</li>`)}</ol>
+      ${def.formulas ? html`<div class="formula-box"><p class="small muted" style="margin:0 0 6px">${c.L("Formula", "সূত্র")}</p>${def.formulas.map((f) => html`<p class="formula">${L(f)}</p>`)}</div>` : ""}
+    </div>
+    ${exampleCard(c, def)}
+  </div></div>
+</section>`;
+}
+
+const magWords = (c, v) => {
+  const a = Math.abs(v);
+  if (!(a >= 1e6)) return "";
+  const [d, w] = a >= 1e9 ? [1e9, c.L("billion", "বিলিয়ন")] : [1e6, c.L("million", "মিলিয়ন")];
+  return `${v < 0 ? "−" : ""}${c.num(a / d, 2).replace(/([.][0-9০-৯]*?)[0০]+$/, "$1").replace(/[.]$/, "")} ${w}`;
+};
+const withMag = (c, money, v) => html`${money}${magWords(c, v) ? html`<span class="mag-sub">${magWords(c, v)}</span>` : ""}`;
+
+function exampleCard(c, def) {
+  const ex = def.exampleInfo, v = def.example;
+  if (!ex || !v || !def.summarize || (v.alternatives || []).length < 2) return "";
+  const L = (o) => tr(o, c.lang);
+  const [a, b] = def.summarize(v), [oa, ob] = v.alternatives;
+  const cur = v.currency || "BDT", m = (x) => c.money(x, cur), lph = c.L("L/h", "লি/ঘণ্টা");
+  const rows = [
+    [c.L("Purchase price", "ক্রয়মূল্য"), m(oa.purchase), m(ob.purchase)],
+    [c.L("Fuel use at 75% load", "৭৫% লোডে জ্বালানি"), `${c.num(ex.fuel[0], 1)} ${lph}`, `${c.num(ex.fuel[1], 1)} ${lph}`],
+    [c.L(`Fuel a year (${c.num(ex.hours)} h × ${m(ex.fuelPrice)}/L)`, `বছরে জ্বালানি (${c.num(ex.hours)} ঘণ্টা × লিটার ${m(ex.fuelPrice)})`), m(oa.operating), m(ob.operating)],
+    [c.L("Maintenance a year", "বছরে রক্ষণাবেক্ষণ"), m(oa.maintenance), m(ob.maintenance)],
+    [c.L(`Resale after ${v.years} years`, `${c.d(v.years)} বছর পর রিসেল`), m(oa.eol_value), m(ob.eol_value)],
+  ];
+  const totals = [
+    ["total", c.L(`${v.years}-year TCO`, `${c.d(v.years)} বছরের TCO`), withMag(c, m(a.total), a.total), withMag(c, m(b.total), b.total)],
+    ["", c.L(`TCO, present value @ ${v.discount_rate}%`, `TCO, বর্তমান মূল্য @ ${c.d(v.discount_rate)}%`), withMag(c, m(a.totalPv), a.totalPv), withMag(c, m(b.totalPv), b.totalPv)],
+    ["hl", L(def.unitFor(v).per), m(a.perUnit), m(b.perUnit)],
+  ];
+  const [lo, loIn, hi, hiIn] = a.total <= b.total ? [a, oa, b, ob] : [b, ob, a, oa];
+  const buy = loIn.purchase - hiIn.purchase, own = hi.total - lo.total;
+  const verdict = buy > 0
+    ? c.L(`${loIn.name} costs ${m(buy)} more to buy but ${m(own)} less to own over ${v.years} years.`, `${loIn.name} কিনতে ${m(buy)} বেশি লাগে, কিন্তু ${c.d(v.years)} বছরে মোট খরচ ${m(own)} কম।`)
+    : c.L(`${loIn.name} is cheaper to buy and ${m(own)} cheaper to own over ${v.years} years.`, `${loIn.name} কিনতেও কম, আর ${c.d(v.years)} বছরে মোট খরচ ${m(own)} কম।`);
+  return html`<aside class="panel example-card" aria-labelledby="ex-title">
+    <span class="tag outline">${c.L("Worked example", "উদাহরণ")}</span>
+    <h3 id="ex-title">${L(ex.title)}</h3>
+    <p class="small muted" style="margin:0">${L(ex.lead)}</p>
+    <div class="table-wrap ex-table"><table>
+      <thead><tr><th></th><th class="num">${oa.name}</th><th class="num">${ob.name}</th></tr></thead>
+      <tbody>${rows.map(([l, x, y]) => html`<tr><td>${l}</td><td class="num">${x}</td><td class="num">${y}</td></tr>`)}${totals.map(([cls, l, x, y]) => html`<tr class="${cls}"><td>${l}</td><td class="num">${x}</td><td class="num">${y}</td></tr>`)}</tbody>
+    </table></div>
+    <p class="ex-verdict">${verdict}</p>
+    <button class="btn btn-primary" type="button" data-calc-example data-scroll-to-form>${icon("sparkle", 16)} ${c.L("Load this example into the calculator", "উদাহরণটি ক্যালকুলেটরে বসান")}</button>
+    <p class="tiny muted ex-meta">${L(ex.collected)}</p>
+    <p class="tiny muted" style="margin:6px 0 0">${L(ex.assumptions)}</p>
+    <ul class="ex-sources tiny muted">${ex.sources.map(([l, u]) => html`<li>${u ? html`<a href="${u}" target="_blank" rel="noopener nofollow">${L(l)}</a>` : L(l)}</li>`)}</ul>
+  </aside>`;
 }
 
 async function calcPage(c) {
@@ -284,18 +350,20 @@ async function calcPage(c) {
     <p class="lead">${L(def.intro)}</p>
     <div class="row no-print" style="margin-top:6px">
       <button class="btn btn-ghost btn-sm" type="button" data-calc-example form="calc-form">${icon("sparkle", 16)} ${c.t("calc.load_example")}</button>
-      <button class="btn btn-ghost btn-sm" type="button" data-calc-clear form="calc-form">${icon("refresh", 16)} ${c.t("calc.reset")}</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-calc-clear form="calc-form">${icon("x", 16)} ${c.L("Clear calculation", "হিসাব ক্লিয়ার করুন")}</button>
     </div>
-    <div class="alert alert-info" data-example-note hidden style="margin-top:18px;max-width:760px">${icon("info", 18)}<div>${c.t("calc.example_loaded")}</div></div>
+    <div class="alert alert-info" data-example-note hidden style="margin-top:18px;max-width:760px">${icon("info", 18)}<div>${c.t("calc.example_loaded")} <button class="btn btn-secondary btn-sm" type="button" data-calc-clear style="margin:6px 0 0 4px">${icon("x", 14)} ${c.L("Clear calculation", "হিসাব ক্লিয়ার করুন")}</button></div></div>
   </div>
 </section>
 <section class="section-sm" style="padding-top:8px" data-calc data-slug="${def.slug}">
   <div class="wrap ${def.custom === "cs" ? "" : "calc-layout"}">
     <form class="panel" id="calc-form" data-calc-form novalidate autocomplete="off">
       <div class="alert alert-err" data-form-error hidden></div>
+      <div class="alert alert-ok" data-clear-note hidden style="margin-bottom:16px">${icon("check-circle", 18)}<div>${c.L("The form is cleared — enter your own figures.", "ফর্ম খালি করা হয়েছে — এখন নিজের তথ্য দিন।")} <button class="btn btn-secondary btn-sm" type="button" data-calc-undo style="margin:6px 0 0 4px">${c.L("Undo", "ফিরিয়ে আনুন")}</button></div></div>
       <div data-form><noscript><p class="muted">${c.L("Please enable JavaScript to use the calculator.", "ক্যালকুলেটর ব্যবহার করতে JavaScript চালু করুন।")}</p></noscript><p class="muted small">${c.t("common.loading")}</p></div>
       <div class="form-actions">
         <button class="btn btn-primary btn-lg" type="submit">${c.t("calc.calculate")}</button>
+        <button class="btn btn-secondary btn-lg" type="button" data-calc-clear>${icon("x", 18)} ${c.L("Clear calculation", "হিসাব ক্লিয়ার করুন")}</button>
         <label class="check small" style="margin-left:auto"><input type="checkbox" data-auto checked> ${c.t("calc.auto")}</label>
       </div>
     </form>
@@ -304,6 +372,7 @@ async function calcPage(c) {
     </div>
   </div>
 </section>
+${howtoSection(c, def)}
 <section class="section-sm">
   <div class="wrap wrap-narrow">
     <details class="disclosure" open><summary>${c.t("calc.method")}</summary><div><ol class="method-list">${def.method.map((m) => html`<li>${L(m)}</li>`)}</ol></div></details>
@@ -376,6 +445,7 @@ async function libraryItem(c) {
       <div class="row" style="gap:6px;margin-bottom:12px"><span class="tag outline">${c.t("lib.one." + it.type)}</span>${priceTag(c, it.price)}</div>
       <h1 style="font-size:clamp(32px,4vw,48px)">${itemTitle(c, it)}</h1>
       <p class="lead">${c.pick(it.summary_en, it.summary_bn)}</p>
+      ${shareMenu(c, s, c.siteUrl + c.url.pathname, itemTitle(c, it))}
       ${preview ? html`<h2 style="font-size:22px;margin-top:32px">${c.t("lib.preview")}</h2>
         <div class="pdf-preview"><iframe src="/preview/${it.slug}#view=FitH" title="${c.t("lib.preview")}" loading="lazy"></iframe></div>
         <p class="small" style="margin-top:8px"><a class="link" href="/preview/${it.slug}" target="_blank" rel="noopener">${icon("eye", 16)} ${c.t("lib.preview_open")}</a></p>` : ""}
@@ -461,6 +531,7 @@ ${extras ? html`<section class="section-sm" style="padding-top:0"><div class="wr
 async function postPage(c, section) {
   const p = await one(c.env, "SELECT * FROM posts WHERE section=? AND slug=? AND status='published'", section, c.params.slug);
   if (!p) throw new HttpError(404);
+  const s = await c.settings();
   const base = "/" + SECTION_PATH[section];
   const fallback = c.lang === "bn" ? !p.body_bn : !p.body_en;
   const more = await all(c.env, "SELECT slug, title_en, title_bn FROM posts WHERE section=? AND status='published' AND id<>? ORDER BY (category=?) DESC, published_at DESC LIMIT 4", section, p.id, p.category);
@@ -475,6 +546,7 @@ async function postPage(c, section) {
     <h1 style="max-width:none">${c.pick(p.title_en, p.title_bn)}</h1>
     <p class="lead">${c.pick(p.summary_en, p.summary_bn)}</p>
     <div class="article-meta"><span>${c.t("learn.by", { author: p.author || "ProcureBest" })}</span>${p.published_at ? html`<span>${c.t("learn.published")}: ${c.date(p.published_at)}</span>` : ""}</div>
+    ${shareMenu(c, s, c.siteUrl + c.url.pathname, c.pick(p.title_en, p.title_bn))}
     ${fallback ? html`<div class="alert alert-info" style="margin-top:18px">${icon("globe", 18)}<div>${c.t("learn.fallback")}</div></div>` : ""}
   </div>
 </section>
@@ -483,7 +555,7 @@ ${p.cover_id ? html`<div class="wrap wrap-narrow"><img class="article-cover" src
   <div class="wrap wrap-narrow">
     <div class="prose" ${fallback ? raw(`lang="${c.lang === "bn" ? "en" : "bn"}"`) : ""}>${raw(markdown(c.pick(p.body_en, p.body_bn)))}</div>
     ${refs.length ? html`<h2 style="font-size:22px;margin-top:48px">${c.t("learn.references")}</h2><ol class="method-list">${refs.map((r) => html`<li>${r.url ? html`<a href="${r.url}" rel="noopener nofollow" target="_blank">${r.title || r.url}</a>` : r.title}</li>`)}</ol>` : ""}
-    ${relCalc && !calcOff(await c.settings()).has(relCalc) ? html`<h2 style="font-size:22px;margin-top:48px">${c.t("learn.related_tools")}</h2><div class="grid grid-2" style="margin-top:16px">${calcCard(c, BY_SLUG[relCalc])}</div>` : ""}
+    ${relCalc && !calcOff(s).has(relCalc) ? html`<h2 style="font-size:22px;margin-top:48px">${c.t("learn.related_tools")}</h2><div class="grid grid-2" style="margin-top:16px">${calcCard(c, BY_SLUG[relCalc])}</div>` : ""}
     ${more.length ? html`<h2 style="font-size:22px;margin-top:48px">${c.t("learn.more")}</h2><ul class="feature-list">${more.map((m) => html`<li>${icon("book", 18)}<a href="${c.p(`${base}/${m.slug}`)}">${c.pick(m.title_en, m.title_bn)}</a></li>`)}</ul>` : ""}
   </div>
 </section></article>`;

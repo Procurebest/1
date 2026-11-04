@@ -22,6 +22,29 @@
     return body;
   }
 
+  // ---------------------------------------------------------------- picture size advice (never blocks the upload)
+  const ratioText = (w, h) => { const g = (a, b) => (b ? g(b, a % b) : a), d = g(w, h) || 1; return w / d <= 32 && h / d <= 32 ? `${w / d}:${h / d}` : `${(w / h).toFixed(2)}:1`; };
+  function imageAdvice(box, file) {
+    const out = box.querySelector("[data-img-check]");
+    if (!out || !/^image\//.test(file.type || "")) return;
+    const w0 = +box.dataset.imgW || 0, h0 = +box.dataset.imgH || 0, kb0 = +box.dataset.imgKb || 0, fit = box.dataset.imgFit || "cover";
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight, kb = Math.round(file.size / 1024), notes = [];
+      URL.revokeObjectURL(url);
+      if (h0 && fit !== "width" && Math.abs(w / h - w0 / h0) / (w0 / h0) > 0.04) notes.push(fit === "contain"
+        ? T(`The frame is ${ratioText(w0, h0)}; this picture is ${ratioText(w, h)}, so there will be empty space around it.`, `ফ্রেম ${ratioText(w0, h0)}; এই ছবি ${ratioText(w, h)}, তাই চারপাশে ফাঁকা জায়গা থাকবে।`)
+        : T(`The frame is ${ratioText(w0, h0)}; this picture is ${ratioText(w, h)}, so its edges will be trimmed.`, `ফ্রেম ${ratioText(w0, h0)}; এই ছবি ${ratioText(w, h)}, তাই কিনারা কেটে ফ্রেমে বসানো হবে।`));
+      if (w0 && w < w0 * 0.75) notes.push(T(`Only ${w} px wide — it may look blurry. Recommended: ${w0}${h0 ? " × " + h0 : ""} px.`, `মাত্র ${w} পিক্সেল চওড়া — ঝাপসা দেখাতে পারে। সুপারিশ: ${w0}${h0 ? " × " + h0 : ""} পিক্সেল।`));
+      if (kb0 && kb > kb0 * 1.5) notes.push(T(`${kb} KB is more than the recommended ${kb0} KB, so the page loads slower. Compress it first (for example with squoosh.app).`, `${kb} KB — সুপারিশকৃত ${kb0} KB-এর চেয়ে বেশি, তাই পাতা ধীরে খুলবে। আগে কমপ্রেস করে নিন (যেমন squoosh.app দিয়ে)।`));
+      out.hidden = false;
+      out.classList.toggle("ok", !notes.length);
+      out.textContent = `${notes.length ? "⚠" : "✓"} ${w} × ${h} px, ${kb} KB — ` + (notes.length ? notes.join(" ") : T("matches the recommended size.", "সুপারিশকৃত মাপের সাথে মিলেছে।"));
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+  }
+
   // ---------------------------------------------------------------- uploads
   document.querySelectorAll("[data-upload]").forEach((box) => {
     const input = box.querySelector("[data-upload-input]");
@@ -33,6 +56,7 @@
     input.addEventListener("change", async () => {
       const file = input.files && input.files[0];
       if (!file) return;
+      imageAdvice(box, file);
       const submit = form && form.querySelector('button[type="submit"]');
       if (submit) submit.disabled = true;
       bar.hidden = false;
@@ -91,6 +115,7 @@
     input.addEventListener("change", async () => {
       const file = input.files && input.files[0];
       if (!file || !area) return;
+      imageAdvice(box, file);
       status.textContent = T("Uploading…", "আপলোড হচ্ছে…");
       try {
         const done = await uploadFile(file, "cover", (p) => { status.textContent = T("Uploading… ", "আপলোড হচ্ছে… ") + Math.round(p * 100) + "%"; });
