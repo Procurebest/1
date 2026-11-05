@@ -123,6 +123,23 @@ console.log("\nCollect-only mode (no email service) + KV storage");
     assert.deepEqual(Buffer.from(bytes), Buffer.from(seed.data, "base64"));
     assert.match(res.headers.get("Content-Disposition"), /supplier-database\.xlsx/);
   });
+  await test("free downloads: 2 books or files a day per email (setting daily_download_limit)", async () => {
+    const free = (await env.DB.prepare("SELECT slug FROM items WHERE status='published' AND price=0 AND file_id IS NOT NULL ORDER BY id").all()).results.map((r) => r.slug);
+    const since = new Date(Date.now() - 864e5).toISOString();
+    const seen = new Set((await env.DB.prepare("SELECT DISTINCT ref FROM events WHERE kind='download' AND email='rahim@example.com' AND created_at >= ?").bind(since).all()).results.map((r) => r.ref));
+    const doneFree = free.filter((x) => seen.has(x)), fresh = free.filter((x) => !seen.has(x)), k = 2 - doneFree.length;
+    assert.ok(k >= 0 && fresh.length > k, "enough free files in the starter content");
+    for (const slug of fresh.slice(0, k)) assert.equal((await visitor.req("POST", `/api/library/${slug}/link`, { json: { lang: "en" } })).status, 200);
+    const blocked = await visitor.req("POST", `/api/library/${fresh[k]}/link`, { json: { lang: "en" } });
+    assert.equal(blocked.status, 429);
+    assert.match(blocked.data.error, /free books or files a day/);
+    const again = doneFree[0] || fresh[0];
+    assert.equal((await visitor.req("POST", `/api/library/${again}/link`, { json: { lang: "en" } })).status, 200, "the same file again today is not counted twice");
+    // 0 = no limit (Admin → Settings → Daily limits); later tests download more files
+    const pg = await admin.req("GET", "/admin/settings");
+    assert.equal((await admin.req("POST", "/admin/settings", { form: { _csrf: formCsrf(pg.text), daily_download_limit: "0" } })).status, 303);
+    assert.equal((await visitor.req("POST", `/api/library/${fresh[k]}/link`, { json: { lang: "en" } })).status, 200);
+  });
   await test("download links are signed and expire", async () => {
     const bad = await visitor.req("GET", "/dl/abc.def.ghi");
     assert.equal(bad.status, 410);
@@ -261,17 +278,20 @@ console.log("\nCollect-only mode (no email service) + KV storage");
     const nf = await other.req("GET", "/en/certificates/verify?code=PB-2026-AAAA-BBBB");
     assert.match(nf.text, /No certificate was found/);
   });
-  await test("free exam daily limit (2 per day by default)", async () => {
-    const r2 = await visitor.req("POST", "/api/exams/beginner/start", { json: { name: "Rahim Uddin", lang: "en" } });
-    assert.equal(r2.status, 200);
-    const id2 = r2.data.redirect.split("/").pop();
-    await answerAll(visitor, id2, false);
-    await visitor.req("POST", `/api/exams/attempt/${id2}/submit`, { json: { lang: "en" } });
-    const res = await visitor.req("GET", `/en/exams/result/${id2}`);
-    assert.match(res.text, /Not passed/);
-    const r3 = await visitor.req("POST", "/api/exams/beginner/start", { json: { name: "Rahim Uddin", lang: "en" } });
+  await test("free exams: 2 a day per email, all exams together (setting daily_exam_limit)", async () => {
+    const since = new Date(Date.now() - 864e5).toISOString();
+    const used = async () => Number((await env.DB.prepare("SELECT COUNT(*) AS n FROM attempts WHERE email='rahim@example.com' AND paid=0 AND started_at >= ?").bind(since).first()).n);
+    while ((await used()) < 2) {
+      const r2 = await visitor.req("POST", "/api/exams/beginner/start", { json: { name: "Rahim Uddin", lang: "en" } });
+      assert.equal(r2.status, 200);
+      const id2 = r2.data.redirect.split("/").pop();
+      await answerAll(visitor, id2, false);
+      await visitor.req("POST", `/api/exams/attempt/${id2}/submit`, { json: { lang: "en" } });
+      assert.match((await visitor.req("GET", `/en/exams/result/${id2}`)).text, /Not passed/);
+    }
+    const r3 = await visitor.req("POST", "/api/exams/experienced/start", { json: { name: "Rahim Uddin", lang: "en" } });
     assert.equal(r3.status, 400);
-    assert.match(r3.data.error, /today's free attempts/);
+    assert.match(r3.data.error, /free exams a day/);
   });
   await test("paid exam: buy, approve, 3 attempts", async () => {
     const no = await visitor.req("POST", "/api/exams/expert/start", { json: { name: "Rahim Uddin", lang: "en" } });
@@ -641,13 +661,14 @@ console.log("\nEmail verification mode (email service configured) + D1 file stor
     assert.match(h.text, /class="quote-strip"/);
     assert.match(h.text, /data-typewriter=/);
   });
-  await test("a book tagged for Negotiation Guru appears on that page and its menu has Courses/Books/Articles", async () => {
+  await test("a book tagged for Negotiation Guru appears on that page; the menu has Books/Articles but no Courses", async () => {
     await env.DB.prepare("UPDATE items SET section='negotiation' WHERE slug='supplier-database'").run();
     const p = await client(env).req("GET", "/en/negotiation-guru");
     assert.equal(p.status, 200);
     assert.match(p.text, /id="books"/);
     assert.match(p.text, /Supplier Database/);
-    assert.match(p.text, /negotiation-guru#courses/);
+    assert.doesNotMatch(p.text, /negotiation-guru#courses/);
+    assert.match(p.text, /negotiation-guru#books/);
   });
   await test("posts in the new sections get their own address and a cover picture", async () => {
     const pg = await admin.req("GET", "/admin/posts/new?section=ai");

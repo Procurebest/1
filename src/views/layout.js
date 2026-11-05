@@ -6,7 +6,7 @@ import { calcList } from "../lib/calclist.js";
 import { tr } from "../../public/js/calc/defs.js";
 import { all } from "../lib/db.js";
 
-export const ASSET_V = "8";
+export const ASSET_V = "9";
 const asset = (p) => `${p}?v=${ASSET_V}`;
 export const LIB_TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
 
@@ -19,10 +19,10 @@ async function navItems(c, s) {
     { href: "/calculators", label: c.t("nav.calculators"), sub: [...calcs.map((k) => [`/calculators/${k.slug}`, tr(k.title, c.lang)]), ["/calculators", c.t("nav.all_calculators")]] },
     { href: "/exams", label: c.t("nav.exams"), free: s.nav_free_badge !== "0" && exams.some((e) => !e.price),
       sub: [...exams.map((e) => [`/exams/${e.code}`, c.pick(e.title_en, e.title_bn), e.price ? "" : c.t("nav.free")]), ["/certificates/verify", c.t("footer.verify_cert")]] },
-    { href: "/library", label: c.t("nav.library"), sub: [...LIB_TYPES.map((t) => [`/library?type=${t}`, c.t("lib.type." + t)]), ["/library", c.t("nav.all_library")]] },
+    { href: "/library", label: c.t("nav.library"), sub: [...LIB_TYPES.map((t) => [`/library#${t === "book" ? "books" : t === "excel" ? "excel" : "docs"}`, c.t("lib.type." + t)]), ["/library", c.t("nav.all_library")]] },
     { href: "/courses", label: c.t("nav.courses"), sub: [["/courses?kind=live", c.t("courses.live")], ["/courses?kind=recorded", c.t("courses.recorded")]] },
-    { href: "/negotiation-guru", label: c.t("nav.negotiation"), sub: [["/negotiation-guru#courses", c.t("nav.courses")], ["/negotiation-guru#books", c.t("nav.books")], ["/negotiation-guru#articles", c.t("nav.articles")]] },
-    { href: "/procurement-ai", label: c.t("nav.ai"), sub: [["/procurement-ai#courses", c.t("nav.courses")], ["/procurement-ai#books", c.t("nav.books")], ["/procurement-ai#articles", c.t("nav.articles")]] },
+    { href: "/negotiation-guru", label: c.t("nav.negotiation"), sub: [["/negotiation-guru#books", c.t("nav.books")], ["/negotiation-guru#articles", c.t("nav.articles")]] },
+    { href: "/procurement-ai", label: c.t("nav.ai"), sub: [["/procurement-ai#books", c.t("nav.books")], ["/procurement-ai#articles", c.t("nav.articles")]] },
     { href: "/blog", label: c.t("nav.blog"), sub: [["/blog", c.t("nav.articles")], ["/career", c.t("nav.career")], ["/glossary", c.t("nav.glossary")]] },
     { href: "/about", label: c.t("nav.about"), sub: [["/about", c.t("nav.about_us")], ["/about#founder", c.t("nav.founder")], ["/contact", c.t("footer.contact")], ["/help", c.t("footer.help")]] },
   ];
@@ -228,7 +228,7 @@ export function welcomePopup(c, s) {
 <div class="modal-backdrop" data-welcome data-key="${(h >>> 0).toString(36)}" role="dialog" aria-modal="true" aria-labelledby="wp-title" hidden>
   <div class="modal welcome-modal">
     <button type="button" class="icon-btn wp-close" data-welcome-close aria-label="${c.t("common.close")}">${icon("x", 20)}</button>
-    <div class="wp-top"><div class="wp-badge">${icon("award", 28)}</div><span class="free-blink">${c.t("nav.free")}</span></div>
+    <div class="wp-top"><div class="wp-badge">${icon("award", 28)}</div><span class="free-blink">${c.t("nav.free")}</span>${c.lang === "en" ? html`<a class="lang-hint" href="${langSwitchUrl(c, "bn")}" lang="bn" hreflang="bn">বাংলায় দেখুন</a>` : ""}</div>
     <h3 id="wp-title">${title}</h3>
     ${text ? html`<p>${text}</p>` : ""}
     ${feats.length ? html`<ul class="feature-list">${feats.map((f) => html`<li>${icon("check", 18)}<span>${f}</span></li>`)}</ul>` : ""}

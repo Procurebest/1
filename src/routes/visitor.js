@@ -5,7 +5,7 @@ import { layout, pageHead, waButton, certBadge } from "../views/layout.js";
 import { icon } from "../views/icons.js";
 import { HttpError } from "../app.js";
 import { paymentMethods } from "../lib/settings.js";
-import { levels, level, available, paidAttemptsLeft, freeAttemptsToday, activeAttempt, loadAttempt, publicQuestions, secondsLeft, topicRows } from "../lib/exams.js";
+import { levels, level, available, paidAttemptsLeft, freeAttemptsToday, activeAttempt, loadAttempt, publicQuestions, secondsLeft, topicRows, freeAttemptsTodayAll, dailyExamLimit } from "../lib/exams.js";
 import { ownsFile, pendingOrder } from "../lib/orders.js";
 import { qrSvg } from "../lib/qr.js";
 import { recordEmail } from "./api.js";
@@ -14,6 +14,7 @@ const tagFor = (c, lv) => (lv.price > 0 ? html`<span class="tag dark">${c.t("exa
 
 // ------------------------------------------------------------------ exams index
 async function examsIndex(c) {
+  const dailyLimit = await dailyExamLimit(c.env);
   const v = await c.readyVisitor();
   const lvs = await levels(c.env);
   const cards = [];
@@ -46,7 +47,7 @@ async function examsIndex(c) {
       </div>
       <p>${c.pick(lv.desc_en, lv.desc_bn)}</p>
       <p class="small" style="margin-top:10px">${icon(lv.certificate ? "award" : "chat", 15)} ${certBadge(c, lv)}</p>
-      <p class="small" style="margin-top:4px;opacity:.75">${lv.price > 0 ? c.t("exam.attempts_info", { n: c.d(lv.attempts_per_purchase) }) : c.t("exam.free_limit", { n: c.d(lv.free_attempts_per_day) })}</p>
+      <p class="small" style="margin-top:4px;opacity:.75">${lv.price > 0 ? c.t("exam.attempts_info", { n: c.d(lv.attempts_per_purchase) }) : dailyLimit ? c.L(`Up to ${dailyLimit} free exams a day per email (all exams together).`, `এক ইমেইলে দিনে সর্বোচ্চ ${c.d(dailyLimit)}টি ফ্রি পরীক্ষা (সব পরীক্ষা মিলিয়ে)।`) : c.t("exam.free_limit", { n: c.d(lv.free_attempts_per_day) })}</p>
       <div style="height:18px"></div>
       <div class="actions">${actions}</div>${extra}
     </div>`);
@@ -72,10 +73,11 @@ async function examStart(c) {
   const v = await c.readyVisitor();
   const avail = await available(c.env, lv.code);
   let left = 0, pending = null, active = null, usedToday = 0;
+  const globalLimit = await dailyExamLimit(c.env), dayLimit = globalLimit || lv.free_attempts_per_day;
   if (v) {
     active = await activeAttempt(c.env, v.email, lv.code);
     if (lv.price > 0) { left = await paidAttemptsLeft(c.env, v.email, lv.code); if (!left) pending = await pendingOrder(c.env, v.email, "exam", lv.code); }
-    else usedToday = await freeAttemptsToday(c.env, v.email, lv.code);
+    else usedToday = globalLimit ? await freeAttemptsTodayAll(c.env, v.email) : await freeAttemptsToday(c.env, v.email, lv.code);
   }
   const prevName = v ? (await one(c.env, "SELECT name FROM emails WHERE email=?", v.email))?.name || "" : "";
   let panel;
@@ -93,7 +95,7 @@ async function examStart(c) {
           <span class="help">${c.t("exam.name_help")}</span></div>
         <div class="alert" data-form-msg hidden style="margin-top:16px"></div>
         <div class="form-actions"><button class="btn btn-primary btn-lg" type="submit">${icon("award", 18)} ${c.t("exam.start")}</button>
-          ${lv.price > 0 ? html`<span class="small muted">${c.t("exam.attempts_left", { n: c.d(left) })}</span>` : v ? html`<span class="small muted">${c.L(`Used today: ${usedToday} of ${lv.free_attempts_per_day}`, `আজ ব্যবহৃত: ${c.d(lv.free_attempts_per_day)}-এর মধ্যে ${c.d(usedToday)}`)}</span>` : ""}</div>
+          ${lv.price > 0 ? html`<span class="small muted">${c.t("exam.attempts_left", { n: c.d(left) })}</span>` : v ? html`<span class="small muted">${c.L(`Free exams used today: ${usedToday} of ${dayLimit}`, `আজ ফ্রি পরীক্ষা: ${c.d(dayLimit)}টির মধ্যে ${c.d(usedToday)}টি দেওয়া হয়েছে`)}</span>` : ""}</div>
       </form>
       ${v ? html`<p class="tiny muted" style="margin-top:14px">${c.t("gate.as", { email: v.email })} · <a href="#" data-forget-email>${c.t("gate.change")}</a></p>` : ""}`;
   const body = html`

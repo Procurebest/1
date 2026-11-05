@@ -49,6 +49,9 @@ export const DEFAULTS = {
   founder_photo_id: "",
   // Career roadmap figures (JSON, edited in Admin → Calculators)
   roadmap_json: "",
+  // Daily limits per email (rolling 24 hours). Only free exams and free downloads count; 0 = no limit.
+  daily_exam_limit: "2",
+  daily_download_limit: "2",
   // Social media links shown as icons on the home page (Admin → Settings). WhatsApp uses whatsapp_url.
   social_youtube: "",
   social_facebook: "",

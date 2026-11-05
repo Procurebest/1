@@ -880,6 +880,9 @@ async function settingsPage(c) {
     ${sel("whatsapp_enabled", c.L("Show the button", "বাটন দেখান"), s.whatsapp_enabled, [["1", c.L("Yes", "হ্যাঁ")], ["0", c.L("No", "না")]], { third: true })}<div class="field third"></div><div class="field third"></div>
     ${fld("whatsapp_label_en", c.L("Button text (English)", "বাটনের লেখা (ইংরেজি)"), s.whatsapp_label_en)}${fld("whatsapp_label_bn", c.L("Button text (Bengali)", "বাটনের লেখা (বাংলা)"), s.whatsapp_label_bn)}
     ${fld("whatsapp_note_en", c.L("Note under the button (English)", "বাটনের নিচের নোট (ইংরেজি)"), s.whatsapp_note_en)}${fld("whatsapp_note_bn", c.L("Note under the button (Bengali)", "বাটনের নিচের নোট (বাংলা)"), s.whatsapp_note_bn)}`)}
+  ${section(c.L("Daily limits (per email)", "দৈনিক সীমা (প্রতি ইমেইল)"), c.L("How many free exams and free downloads (books and files) one email can use in 24 hours. Paid exams and bought files are not limited. 0 = no limit.", "একটি ইমেইল ২৪ ঘণ্টায় কয়টি ফ্রি পরীক্ষা আর কয়টি ফ্রি ডাউনলোড (বই ও ফাইল) করতে পারবে। কেনা পরীক্ষা ও কেনা ফাইলে সীমা নেই। ০ = কোনো সীমা নেই।"), html`
+    ${fld("daily_exam_limit", c.L("Free exams per day", "দিনে ফ্রি পরীক্ষা"), s.daily_exam_limit, { attrs: 'inputmode="numeric" pattern="[0-9০-৯]*"' })}
+    ${fld("daily_download_limit", c.L("Free downloads per day (books & files)", "দিনে ফ্রি ডাউনলোড (বই ও ফাইল)"), s.daily_download_limit, { attrs: 'inputmode="numeric" pattern="[0-9০-৯]*"' })}`)}
   ${section(c.L("Social media links (icons on the home page)", "সোশ্যাল মিডিয়া লিংক (হোমপেজের আইকন)"), c.L("Paste the full address of each page. An icon appears under the home-page buttons only when its link is filled in. The WhatsApp icon uses the WhatsApp group link above.", "প্রতিটি পেজের পুরো ঠিকানা পেস্ট করুন। যে লিংক দেওয়া থাকবে, শুধু সেই আইকন হোমপেজের বাটনের নিচে দেখাবে। WhatsApp আইকন ওপরের WhatsApp গ্রুপ লিংক ব্যবহার করে।"), html`
     ${SOCIAL_LINKS.map(([k, name, , example]) => fld(k, c.L(`${name} link`, `${name} লিংক`), s[k], { attrs: `placeholder="${example}" inputmode="url"` }))}`)}
   ${section(c.L("Share button (articles, books and templates)", "শেয়ার বাটন (আর্টিকেল, বই ও টেমপ্লেট)"), c.L("Tick the options visitors see when they press Share. Untick all of them to hide the Share button.", "ভিজিটর শেয়ার চাপলে কোন অপশনগুলো দেখবেন, টিক দিয়ে বেছে নিন। সবগুলোর টিক তুলে দিলে শেয়ার বাটন লুকানো থাকবে।"), html`
@@ -906,6 +909,11 @@ async function settingsSave(c) {
   const values = {};
   for (const k of Object.keys(DEFAULTS)) if (f.has(k)) values[k] = clip(f.get(k), 2000);
   if (values.whatsapp_url && !WHATSAPP_RE.test(values.whatsapp_url)) return c.redirect(errBack("/admin/settings", c.L("The WhatsApp link must look like https://chat.whatsapp.com/XXXXXXXX", "WhatsApp লিংক এমন হতে হবে: https://chat.whatsapp.com/XXXXXXXX")));
+  for (const k of ["daily_exam_limit", "daily_download_limit"]) if (f.has(k)) {
+    const n = Number(String(values[k]).trim().replace(/[০-৯]/g, (d) => "০১২৩৪৫৬৭৮৯".indexOf(d)));
+    if (!Number.isInteger(n) || n < 0 || n > 50) return c.redirect(errBack("/admin/settings", c.L("Daily limits must be whole numbers from 0 to 50.", "দৈনিক সীমা ০ থেকে ৫০-এর মধ্যে পূর্ণ সংখ্যা হতে হবে।")));
+    values[k] = String(n);
+  }
   for (const [k, name, re, example] of SOCIAL_LINKS) if (values[k] && !re.test(values[k])) return c.redirect(errBack("/admin/settings", c.L(`The ${name} link must look like ${example}`, `${name} লিংক এমন হতে হবে: ${example}`)));
   if (f.has("share_form")) for (const k of SHARE_KEYS) values[k] = f.get(k) ? "1" : "0";
   for (const k of ["pay_bkash_number", "pay_nagad_number"]) if (values[k]) values[k] = values[k].replace(/[\s-]/g, "");

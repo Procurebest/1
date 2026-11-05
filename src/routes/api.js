@@ -1,7 +1,7 @@
 // JSON API used by the site's own pages (email gate, downloads, orders, exams, contact).
 // Every POST must come from this site (Origin check + custom X-PB header).
-import { one, run, rateLimit, logEvent } from "../lib/db.js";
-import { nowIso, isoPlus, MIN, HOUR, randomToken, sha256, isEmail, normEmail, clip, clientIp, signValue, readSigned, toInt } from "../lib/util.js";
+import { one, run, scalar, rateLimit, logEvent } from "../lib/db.js";
+import { nowIso, isoPlus, MIN, HOUR, DAY, randomToken, sha256, isEmail, normEmail, clip, clientIp, signValue, readSigned, toInt } from "../lib/util.js";
 import { mailConfigured, sendMail, emailLayout } from "../lib/mail.js";
 import { paymentMethods } from "../lib/settings.js";
 import { getFile, fileResponse } from "../lib/files.js";
@@ -132,6 +132,16 @@ export function registerApi(r) {
     if (!item.file_id) return c.json({ ok: false, error: c.t("lib.no_file") }, 404);
     if (item.price > 0 && !(await ownsFile(c.env, v.email, item.slug))) {
       return c.json({ ok: false, buy: c.p(`/buy/file/${item.slug}`) }, 402);
+    }
+    // Free books and files: a daily limit per email (re-downloading the same file today is not counted again).
+    if (item.price === 0) {
+      const limit = parseInt((await c.settings()).daily_download_limit, 10);
+      if (limit > 0) {
+        const since = isoPlus(-DAY);
+        const again = Number(await scalar(c.env, "SELECT COUNT(*) FROM events WHERE kind='download' AND email=? AND ref=? AND created_at >= ?", v.email, item.slug, since));
+        const used = again ? 0 : Number(await scalar(c.env, "SELECT COUNT(DISTINCT e.ref) FROM events e JOIN items i ON i.slug=e.ref WHERE e.kind='download' AND e.email=? AND e.created_at >= ? AND i.price=0", v.email, since));
+        if (!again && used >= limit) return c.json({ ok: false, error: c.t("lib.err_daily_limit", { n: c.d(limit) }) }, 429);
+      }
     }
     if (!(await rateLimit(c.env, "dl:" + v.email, 60, 3600))) return c.json({ ok: false, error: c.t("error.rate_limited") }, 429);
     const token = await signValue(await c.secret(), JSON.stringify({ f: item.file_id, i: item.id, e: v.email }), 10 * MIN);

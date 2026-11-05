@@ -3,7 +3,7 @@
 // migrations by hand. Every statement is idempotent (IF NOT EXISTS / INSERT OR IGNORE).
 import { randomToken, nowIso } from "./util.js";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
@@ -38,7 +38,7 @@ const SCHEMA = [
      summary_en TEXT NOT NULL DEFAULT '', summary_bn TEXT NOT NULL DEFAULT '',
      body_en TEXT NOT NULL DEFAULT '', body_bn TEXT NOT NULL DEFAULT '',
      author TEXT NOT NULL DEFAULT 'ProcureBest', refs_json TEXT NOT NULL DEFAULT '[]',
-     status TEXT NOT NULL DEFAULT 'draft', published_at TEXT, updated_at TEXT NOT NULL, cover_id TEXT, UNIQUE (section, slug))`,
+     status TEXT NOT NULL DEFAULT 'draft', published_at TEXT, updated_at TEXT NOT NULL, cover_id TEXT, views INTEGER NOT NULL DEFAULT 0, UNIQUE (section, slug))`,
   `CREATE TABLE IF NOT EXISTS glossary (
      id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE,
      term_en TEXT NOT NULL DEFAULT '', term_bn TEXT NOT NULL DEFAULT '',
@@ -113,6 +113,7 @@ const COLUMNS = [
   ["exam_levels", "thumb_id", "TEXT"],
   ["items", "section", "TEXT NOT NULL DEFAULT ''"],
   ["courses", "section", "TEXT NOT NULL DEFAULT ''"],
+  ["posts", "views", "INTEGER NOT NULL DEFAULT 0"],
 ];
 
 // Exams: Knowledge Check (free, no certificate), Professional (free, certificate) and Pro (paid, certificate).

@@ -194,6 +194,8 @@ export default {
   "exam.attempts_info": ["One payment gives {n} attempts.", "এক পেমেন্টে {n}বার এক্সাম দেওয়া যাবে।"],
   "exam.free_limit": ["Up to {n} attempts per day.", "দিনে সর্বোচ্চ {n}বার।"],
   "exam.err_free_limit": ["You have used today's free attempts for this exam. Please try again tomorrow.", "এই এক্সাম এর জন্য আজকের ফ্রি এক্সেস শেষ। অনুগ্রহ করে আগামীকাল আবার চেষ্টা করুন।"],
+  "exam.err_daily_limit": ["You can take {n} free exams a day with one email. Please try again tomorrow.", "একটি ইমেইল দিয়ে দিনে {n}টি ফ্রি পরীক্ষা দেওয়া যায়। অনুগ্রহ করে আগামীকাল আবার চেষ্টা করুন।"],
+  "lib.err_daily_limit": ["You can download {n} free books or files a day with one email. Please come back tomorrow.", "একটি ইমেইল দিয়ে দিনে {n}টি ফ্রি বই বা ফাইল ডাউনলোড করা যায়। অনুগ্রহ করে আগামীকাল আবার চেষ্টা করুন।"],
   "exam.err_paid": ["This exam needs a purchase. Buy access to continue.", "এই এক্সাম এর জন্য অ্যাক্সেস কিনতে হবে।"],
   "exam.err_name": ["Please enter your full name as it should appear on the certificate.", "সার্টিফিকেটে যেভাবে থাকবে সেভাবে আপনার পূর্ণ নাম লিখুন।"],
   "exam.name_label": ["Full name for the certificate", "সার্টিফিকেটের জন্য পূর্ণ নাম"],

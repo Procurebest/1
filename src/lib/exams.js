@@ -1,5 +1,6 @@
 // MCQ examination engine. Correct answers never leave the server; scoring happens here.
 import { one, all, run, scalar } from "./db.js";
+import { loadSettings } from "./settings.js";
 import { nowIso, isoPlus, randomToken, randomCode, MIN, DAY, parseJson } from "./util.js";
 
 export const GRACE_MS = 30 * 1000;
@@ -35,6 +36,14 @@ export async function paidAttemptsLeft(env, email, code) {
 export async function freeAttemptsToday(env, email, code) {
   return Number(await scalar(env, "SELECT COUNT(*) FROM attempts WHERE email=? AND level_code=? AND paid=0 AND started_at >= ?", email, code, isoPlus(-DAY)));
 }
+// All free exams together, per email, in the last 24 hours.
+export async function freeAttemptsTodayAll(env, email) {
+  return Number(await scalar(env, "SELECT COUNT(*) FROM attempts WHERE email=? AND paid=0 AND started_at >= ?", email, isoPlus(-DAY)));
+}
+export async function dailyExamLimit(env) {
+  const n = parseInt((await loadSettings(env)).daily_exam_limit, 10);
+  return Number.isFinite(n) && n >= 0 ? n : 2;
+}
 export async function activeAttempt(env, email, code) {
   return one(env, "SELECT id, deadline_at FROM attempts WHERE email=? AND level_code=? AND submitted_at IS NULL AND deadline_at > ? ORDER BY started_at DESC LIMIT 1", email, code, nowIso());
 }
@@ -60,6 +69,9 @@ export async function startAttempt(env, { email, name, code, lang }) {
     paid = 1; entitlementId = ent.id;
   } else if ((await freeAttemptsToday(env, email, code)) >= lv.free_attempts_per_day) {
     throw new ExamError("exam.err_free_limit");
+  } else {
+    const limit = await dailyExamLimit(env);
+    if (limit > 0 && (await freeAttemptsTodayAll(env, email)) >= limit) throw new ExamError("exam.err_daily_limit", { n: limit });
   }
   const pool = (await all(env, "SELECT id, options_json FROM questions WHERE level_code=? AND status='published'", code));
   if (pool.length < lv.question_count) throw new ExamError("exam.err_not_enough", { have: pool.length, need: lv.question_count });

@@ -1,6 +1,6 @@
 // Public pages: home, calculators, library, blog, career, glossary and info pages.
 import { html, raw, jsonScript, nowIso, paidLeft } from "../lib/util.js";
-import { one, all } from "../lib/db.js";
+import { one, all, run } from "../lib/db.js";
 import { layout, pageHead, waButton, certBadge, LIB_TYPES, socialRow, FA_CSS, shareMenu } from "../views/layout.js";
 import { calcList, ROADMAP } from "../lib/calclist.js";
 import { calcOff } from "../lib/settings.js";
@@ -226,10 +226,10 @@ export function itemCard(c, it) {
   </a>`;
 }
 
-function postCard(c, p, section = "blog") {
+function postCard(c, p, section = "blog", tagAll = false) {
   return html`<a class="card hover post-card ${p.cover_id ? "has-cover" : ""}" href="${c.p(`/${SECTION_PATH[section] || section}/${p.slug}`)}" data-search="${(p.title_en + " " + p.title_bn + " " + p.summary_en + " " + p.summary_bn).toLowerCase()}" data-cat="${p.category}">
     ${p.cover_id ? html`<img class="post-cover" src="/media/${p.cover_id}" alt="" loading="lazy">` : ""}
-    <div class="row" style="gap:6px;margin-bottom:12px">${section !== "blog" && section !== "career" ? html`<span class="tag dark">${secNav(c, section)}</span>` : ""}${p.category ? html`<span class="tag">${catLabel(c, p.category)}</span>` : ""}</div>
+    <div class="row" style="gap:6px;margin-bottom:12px">${(tagAll ? section !== "blog" : section !== "blog" && section !== "career") ? html`<span class="tag dark">${secNav(c, section)}</span>` : ""}${p.category ? html`<span class="tag">${catLabel(c, p.category)}</span>` : ""}</div>
     <h3>${c.pick(p.title_en, p.title_bn)}</h3>
     <p>${c.pick(p.summary_en, p.summary_bn)}</p>
     <div class="card-foot muted">${c.date(p.published_at)}</div></a>`;
@@ -392,20 +392,26 @@ ${howtoSection(c, def)}
 
 // ------------------------------------------------------------------ library
 async function library(c) {
-  const type = TYPES.includes(c.url.searchParams.get("type")) ? c.url.searchParams.get("type") : "";
-  const items = await all(c.env, "SELECT * FROM items WHERE status='published' ORDER BY sort, id DESC");
-  const counts = Object.fromEntries(TYPES.map((t) => [t, items.filter((i) => i.type === t).length]));
+  const items = await all(c.env, "SELECT * FROM items WHERE status='published' ORDER BY created_at DESC, id DESC");
+  const popular = items.filter((i) => i.downloads > 0).sort((a, b) => b.downloads - a.downloads || b.id - a.id).slice(0, 4);
+  // Three columns, newest first: books (left), doc files / CV / other templates (middle), Excel templates (right).
+  const cols = [
+    ["books", c.t("lib.type.book"), items.filter((i) => i.type === "book")],
+    ["docs", c.L("Doc files, CV & other templates", "ডক ফাইল, CV ও অন্যান্য টেমপ্লেট"), items.filter((i) => i.type !== "book" && i.type !== "excel")],
+    ["excel", c.t("lib.type.excel"), items.filter((i) => i.type === "excel")],
+  ];
   const body = html`${pageHead(c, { title: c.t("lib.title"), lead: c.t("lib.lead") })}
 <section class="section-sm" style="padding-top:0">
   <div class="wrap" data-directory>
     <div class="toolbar">
       <div class="search">${icon("search", 18)}<input type="search" placeholder="${c.t("lib.search")}" aria-label="${c.t("lib.search")}" data-dir-search></div>
-      <div class="chips" role="group">
-        <button type="button" class="chip ${type ? "" : "on"}" data-dir-cat="">${c.t("dir.all")} <span class="muted">${c.d(items.length)}</span></button>
-        ${TYPES.filter((t) => counts[t] || type === t).map((t) => html`<button type="button" class="chip ${type === t ? "on" : ""}" data-dir-cat="${t}">${c.t("lib.type." + t)} <span class="muted">${c.d(counts[t])}</span></button>`)}
-      </div>
     </div>
-    ${items.length ? html`<div class="grid grid-3">${paidLeft(items, 3, (i) => i.price > 0).map((it) => itemCard(c, it))}</div>
+    ${popular.length ? html`<div class="lib-pop"><h2 class="hub-h" style="margin-top:0">${c.L("Popular — most downloaded", "জনপ্রিয় — সবচেয়ে বেশি ডাউনলোড")}</h2>
+      <div class="grid grid-4">${popular.map((it) => itemCard(c, it))}</div></div>` : ""}
+    ${items.length ? html`<div class="lib-cols">${cols.map(([key, title, list]) => html`<div class="lib-col" id="${key}">
+        <h2>${title} <span class="muted">${c.d(list.length)}</span></h2>
+        ${list.length ? html`<div class="stack">${list.map((it) => itemCard(c, it))}</div>` : html`<p class="lib-col-empty">${c.L("Coming soon.", "শীঘ্রই আসছে।")}</p>`}
+      </div>`)}</div>
       <p class="empty" data-dir-empty hidden>${c.t("dir.no_results")}</p>` : html`<p class="empty">${c.t("lib.none")}</p>`}
   </div>
 </section>`;
@@ -492,15 +498,31 @@ async function calcOffPage(c) {
 }
 
 // ------------------------------------------------------------------ blog & career
+// "Most popular" row on the Procurement Blog: the most-read posts, ranked automatically.
+function popularRow(c, list) {
+  return html`<section class="section-sm" style="padding-top:0"><div class="wrap">
+  <h2 class="hub-h" style="margin-top:0">${c.L("Most popular", "সর্বোচ্চ পঠিত")}</h2>
+  <div class="pop-row">${list.map((p, i) => html`<a class="card hover post-card pop-card ${p.cover_id ? "has-cover" : ""}" href="${c.p(`/${SECTION_PATH[p.section] || p.section}/${p.slug}`)}">
+    ${p.cover_id ? html`<img class="post-cover" src="/media/${p.cover_id}" alt="" loading="lazy">` : ""}
+    <div class="row" style="gap:6px;margin-bottom:10px"><span class="pop-rank">${c.d(i + 1)}</span>${p.section !== "blog" ? html`<span class="tag dark">${secNav(c, p.section)}</span>` : ""}${p.category ? html`<span class="tag">${catLabel(c, p.category)}</span>` : ""}</div>
+    <h3>${c.pick(p.title_en, p.title_bn)}</h3>
+    <p class="pop-views">${c.L(`Read ${c.num(p.views)} times`, `${c.num(p.views)} বার পঠিত`)}</p></a>`)}</div>
+</div></section>`;
+}
+
 async function postList(c, section) {
   const q = (c.url.searchParams.get("q") || "").trim().slice(0, 80);
   const cat = (c.url.searchParams.get("category") || "").trim().slice(0, 40);
-  const posts = await all(c.env, "SELECT * FROM posts WHERE section=? AND status='published' ORDER BY published_at DESC", section);
+  // The Procurement Blog shows every post from every section, newest first, with a "Most popular" row on top.
+  const everything = section === "blog";
+  const posts = everything ? await all(c.env, "SELECT * FROM posts WHERE status='published' ORDER BY published_at DESC")
+    : await all(c.env, "SELECT * FROM posts WHERE section=? AND status='published' ORDER BY published_at DESC", section);
+  const popular = everything ? await all(c.env, "SELECT * FROM posts WHERE status='published' AND views > 0 ORDER BY views DESC, published_at DESC LIMIT 4") : [];
   const cats = [...new Set(posts.map((p) => p.category).filter(Boolean))];
   // Negotiation Guru and Procurement AI also show the books and courses the admin tagged for them.
   const hub = section === "negotiation" || section === "ai";
   const books = hub ? await all(c.env, "SELECT * FROM items WHERE status='published' AND section=? ORDER BY sort, id DESC", section) : [];
-  const courses = hub ? await all(c.env, "SELECT * FROM courses WHERE status='published' AND section=? ORDER BY sort, id DESC", section) : [];
+  const courses = []; // courses are no longer shown in Negotiation Guru and Procurement AI
   const extras = books.length + courses.length > 0;
   const body = html`${pageHead(c, { title: secT(c, section, "title"), lead: secT(c, section, "lead") })}
 ${extras ? html`<section class="section-sm" style="padding-top:0"><div class="wrap">
@@ -512,6 +534,7 @@ ${extras ? html`<section class="section-sm" style="padding-top:0"><div class="wr
   ${courses.length ? html`<h2 class="hub-h" id="courses">${c.t("nav.courses")}</h2><div class="grid grid-3">${paidLeft(courses, 3, (k) => k.price > 0).map((k) => courseCard(c, k))}</div>` : ""}
   ${books.length ? html`<h2 class="hub-h" id="books">${c.t("nav.books")}</h2><div class="grid grid-3">${paidLeft(books, 3, (it) => it.price > 0).map((it) => itemCard(c, it))}</div>` : ""}
 </div></section>` : ""}
+${popular.length ? popularRow(c, popular) : ""}
 <section class="section-sm" style="padding-top:0" id="articles">
   <div class="wrap" data-directory>
     ${extras && posts.length ? html`<h2 class="hub-h" style="margin-top:0">${c.t("nav.articles")}</h2>` : ""}
@@ -520,7 +543,7 @@ ${extras ? html`<section class="section-sm" style="padding-top:0"><div class="wr
       ${cats.length > 1 ? html`<div class="chips" role="group"><button type="button" class="chip ${cat ? "" : "on"}" data-dir-cat="">${c.t("dir.all")}</button>
         ${cats.map((k) => html`<button type="button" class="chip ${cat === k ? "on" : ""}" data-dir-cat="${k}">${catLabel(c, k)}</button>`)}</div>` : ""}
     </div>
-    <div class="grid grid-3">${posts.map((p) => postCard(c, p, section))}</div>
+    <div class="grid grid-3">${posts.map((p) => postCard(c, p, everything ? p.section : section, everything))}</div>
     <p class="empty" data-dir-empty hidden>${c.t("post.none")}</p>` : extras ? "" : html`<div class="empty"><p style="margin:0 0 16px">${section === "career" ? c.t("career.none") : c.t("section.empty")}</p>
       <button class="btn btn-primary" type="button" data-subscribe data-done="${c.L("✓ Subscribed — thank you", "✓ সাবস্ক্রাইব হয়েছে — ধন্যবাদ")}">${c.t("newsletter.subscribe")}</button></div>`}
   </div>
@@ -532,6 +555,8 @@ async function postPage(c, section) {
   const p = await one(c.env, "SELECT * FROM posts WHERE section=? AND slug=? AND status='published'", section, c.params.slug);
   if (!p) throw new HttpError(404);
   const s = await c.settings();
+  // Count reads for "Most popular" on the blog (search-engine and link-preview bots are not counted).
+  if (!/bot|crawl|spider|slurp|facebookexternalhit|whatsapp|preview/i.test(c.req.headers.get("user-agent") || "")) await run(c.env, "UPDATE posts SET views=views+1 WHERE id=?", p.id);
   const base = "/" + SECTION_PATH[section];
   const fallback = c.lang === "bn" ? !p.body_bn : !p.body_en;
   const more = await all(c.env, "SELECT slug, title_en, title_bn FROM posts WHERE section=? AND status='published' AND id<>? ORDER BY (category=?) DESC, published_at DESC LIMIT 4", section, p.id, p.category);

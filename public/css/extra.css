@@ -132,3 +132,32 @@ html[lang="bn"] .steps li::before { content: counter(st, bengali); }
 .result-card .kpis .val .mag { font-size: 13px; }
 .details-list .mag { color: var(--muted); font-size: 13px; }
 .example-card .mag-sub { display: block; font-size: 11.5px; font-weight: 500; color: var(--muted); }
+
+/* ===================================================================== v9 additions */
+/* ---------- home: less empty space above the tagline (was 120px / 72px) */
+.hero { padding-top: 52px; }
+@media (max-width: 640px) { .hero { padding-top: 32px; } }
+/* ---------- home exam section: softer, less black */
+.section.dark { background: linear-gradient(180deg, #353a42 0%, #2c3037 100%); }
+.section.dark .card.dark { background: #3d434c; border-color: rgba(255, 255, 255, .08); }
+/* ---------- welcome pop-up: "বাংলায় দেখুন" */
+.wp-top { display: flex; align-items: center; gap: 10px; }
+.lang-hint { margin-left: auto; display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: #166534; background: #dcfce7; border-radius: 999px; padding: 5px 12px; text-decoration: none; animation: free-soft 2.2s ease-in-out infinite; }
+.lang-hint:hover, .lang-hint:focus-visible { background: #bbf7d0; color: #14532d; }
+@media (prefers-reduced-motion: reduce) { .lang-hint { animation: none; } }
+/* ---------- library: popular row + three columns (books | doc files, CV, other | Excel) */
+.lib-pop { margin-bottom: 40px; }
+.lib-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start; }
+@media (max-width: 980px) { .lib-cols { grid-template-columns: 1fr; } }
+.lib-col { scroll-margin-top: 90px; }
+.lib-col h2 { font-size: 22px; margin: 0 0 14px; display: flex; align-items: baseline; gap: 8px; }
+.lib-col h2 .muted { font-size: 15px; font-weight: 500; }
+.lib-col .stack { display: grid; gap: 16px; }
+.lib-col-empty { color: var(--muted); font-size: 14px; padding: 18px; border: 1px dashed var(--line); border-radius: 14px; margin: 0; }
+/* ---------- blog: "Most popular" row */
+.pop-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 980px) { .pop-row { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: minmax(250px, 78%); overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; } .pop-row > * { scroll-snap-align: start; } }
+.pop-card { display: flex; flex-direction: column; }
+.pop-card h3 { font-size: 17px; }
+.pop-rank { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #1d1d1f; color: #fff; font-weight: 700; font-size: 13px; }
+.pop-views { font-size: 13px; color: var(--muted); margin: auto 0 0; padding-top: 10px; }
