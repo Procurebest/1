@@ -245,8 +245,12 @@ console.log("\nCollect-only mode (no email service) + KV storage");
     assert.equal(late.status, 400);
   });
   await test("certificate verification and owner-only print page with QR", async () => {
-    const v = await other.req("GET", `/bn/certificates/verify?code=${certCode.toLowerCase()}`);
-    assert.match(v.text, /বৈধ সার্টিফিকেট/);
+    // certificates are English only: the Bengali address opens the English page
+    const bnv = await other.req("GET", `/bn/certificates/verify?code=${certCode.toLowerCase()}`);
+    assert.equal(bnv.status, 302);
+    assert.equal(bnv.headers.get("Location"), `/en/certificates/verify?code=${certCode.toLowerCase()}`);
+    const v = await other.req("GET", `/en/certificates/verify?code=${certCode.toLowerCase()}`);
+    assert.match(v.text, /Valid/);
     assert.match(v.text, /Rahim Uddin/);
     assert.doesNotMatch(v.text, /rahim@example.com/);
     const p = await other.req("GET", `/en/certificates/${certCode}/print`);

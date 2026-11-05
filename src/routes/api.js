@@ -241,9 +241,9 @@ export function registerApi(r) {
     const name = clip(b.name, 80).replace(/\s+/g, " ");
     if (name.length < 3) return c.json({ ok: false, error: c.t("exam.err_name"), field: "name" }, 400);
     try {
-      const id = await startAttempt(c.env, { email: v.email, name, code: c.params.code, lang: c.lang });
+      const id = await startAttempt(c.env, { email: v.email, name, code: c.params.code, lang: "en" }); // exams are English only
       await recordEmail(c.env, v.email, { source: "exam", lang: c.lang, verified: v.verified, name });
-      return c.json({ ok: true, redirect: c.p(`/exams/attempt/${id}`) });
+      return c.json({ ok: true, redirect: c.p(`/exams/attempt/${id}`, "en") });
     } catch (e) {
       if (e instanceof ExamError) {
         const extra = e.key === "exam.err_paid" ? { buy: c.p(`/buy/exam/${c.params.code}`) } : {};
