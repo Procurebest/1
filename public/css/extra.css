@@ -212,3 +212,29 @@ html[lang="bn"] .hero h1 { max-width: 24ch; }
 .lib-sum { display: none; }
 @media (max-width: 980px) { .lib-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
 @media (max-width: 640px) { .lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; } .lib-card { padding: 8px; } .lib-title { font-size: 14px; } }
+
+/* ===================================================================== v10.2 — bigger covers + preview on mouse-over */
+.lib-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 26px 22px; }
+@media (max-width: 980px) { .lib-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
+@media (max-width: 640px) { .lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; } }
+.lib-title { font-size: 16px; }
+.lib-thumb svg { width: 56px; height: 56px; }
+/* Mouse over a book: the cover zooms a little and a dark panel shows the short description. */
+.lib-card { position: relative; }
+.lib-thumb img { transition: transform .35s ease; }
+.lib-card:hover .lib-thumb img, .lib-card:focus-visible .lib-thumb img { transform: scale(1.06); }
+.lib-card .lib-sum {
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 10px;
+  position: absolute; top: 12px; left: 12px; width: calc(100% - 24px); aspect-ratio: 2 / 3;
+  padding: 18px 16px; border-radius: 8px; box-sizing: border-box; overflow: hidden;
+  -webkit-line-clamp: unset; font-size: 14px; line-height: 1.55; color: #fff;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .15) 0%, rgba(0, 0, 0, .82) 45%, rgba(0, 0, 0, .9) 100%);
+  opacity: 0; transform: translateY(8px); transition: opacity .25s ease, transform .25s ease; pointer-events: none;
+}
+.lib-card .lib-sum::after { content: "Preview →"; font-weight: 700; font-size: 13px; background: #fff; color: #000; border-radius: 999px; padding: 6px 14px; align-self: flex-start; }
+html[lang="bn"] .lib-card .lib-sum::after { content: "প্রিভিউ দেখুন →"; }
+.lib-card:hover .lib-sum, .lib-card:focus-visible .lib-sum { opacity: 1; transform: none; }
+.lib-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-3px); }
+/* Phones and tablets have no mouse: keep the cover clean there. */
+@media (hover: none) { .lib-card .lib-sum { display: none; } }
+@media (max-width: 640px) { .lib-card .lib-sum { top: 8px; left: 8px; width: calc(100% - 16px); } }
