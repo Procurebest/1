@@ -387,8 +387,9 @@ const libGroup = (type) => (type === "book" ? "book" : type === "excel" ? "excel
 const LIB_PER_PAGE = 12;
 
 function libCard(c, it) {
-  return html`<a class="lib-card" href="${c.p("/library/" + it.slug)}">
-    <span class="lib-thumb">${it.cover_id ? html`<img src="/media/${it.cover_id}" alt="" loading="lazy">` : icon(TYPE_ICON[it.type] || "file", 22)}</span>
+  return html`<a class="lib-card" data-type="${it.type}" href="${c.p("/library/" + it.slug)}">
+    <span class="lib-thumb">${it.cover_id ? html`<img src="/media/${it.cover_id}" alt="" loading="lazy">` : icon(TYPE_ICON[it.type] || "file", 22)}
+      <span class="lib-badge">${icon(TYPE_ICON[it.type] || "file", 14)} ${c.t("lib.one." + it.type)}</span></span>
     <span class="lib-body">
       <span class="lib-tags"><span class="tag outline">${c.t("lib.one." + it.type)}</span>${priceTag(c, it.price)}</span>
       <strong class="lib-title">${itemTitle(c, it)}</strong>
