@@ -264,7 +264,7 @@ console.log("\nCollect-only mode (no email service) + KV storage");
   await test("certificate verification and owner-only print page with QR", async () => {
     // certificates are English only: the Bengali address opens the English page
     const bnv = await other.req("GET", `/bn/certificates/verify?code=${certCode.toLowerCase()}`);
-    assert.equal(bnv.status, 302);
+    assert.equal(bnv.status, 301);
     assert.equal(bnv.headers.get("Location"), `/en/certificates/verify?code=${certCode.toLowerCase()}`);
     const v = await other.req("GET", `/en/certificates/verify?code=${certCode.toLowerCase()}`);
     assert.match(v.text, /Valid/);
@@ -374,6 +374,18 @@ console.log("\nCollect-only mode (no email service) + KV storage");
     assert.doesNotMatch(r.text, /<script>alert/);
     assert.doesNotMatch(r.text, /href="javascript:/);
   });
+  await test("question import API: batches, header aliases, A–D answers, clear errors", async () => {
+    const pg = await admin.req("GET", "/admin/questions/import");
+    const csrf = (pg.text.match(/name="csrf-token" content="([^"]+)"/) || [])[1];
+    const r = await admin.req("POST", "/admin/api/questions/import", { json: { first_line: 2, rows: [
+      { Level: "Beginner", Question: "Which document records goods received?", "Option A": "GRN", "Option B": "RFQ", Answer: "a" },
+      { level: "beginner", question: "Bad row", option1: "x" },
+    ] }, headers: { "X-CSRF": csrf } });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    assert.equal(r.data.added, 1);
+    assert.equal(r.data.errors.length, 1);
+    assert.equal(r.data.errors[0].line, 3);
+  });
   await test("question CSV export → import round trip", async () => {
     const expRes = await admin.req("GET", "/admin/questions/export?level=beginner", { raw: true });
     const expBytes = new Uint8Array(await expRes.arrayBuffer());
@@ -382,7 +394,7 @@ console.log("\nCollect-only mode (no email service) + KV storage");
     assert.match(exp.text, /^id,level,topic/);
     const lines = exp.text.trim().split("\r\n");
     { const bc = Number(Object.values(await env.DB.prepare("SELECT COUNT(*) FROM questions WHERE level_code='beginner'").first())[0]); assert.equal(lines.length, bc + 1); }
-    const newRow = '\r\n,expert,risk,published,"What is a ""single point of failure"" in supply?",,A risk where one supplier failure stops supply,,A discount,,,,,,1,Explained,';
+    const newRow = '\r\n,expert,risk,published,"What is a ""single point of failure"" in supply?",A risk where one supplier failure stops supply,A discount,,,A,Explained';
     const beforeCount = Number(Object.values(await env.DB.prepare("SELECT COUNT(*) FROM questions").first())[0]);
     const fd = new FormData();
     const imp = await admin.req("GET", "/admin/questions/import");

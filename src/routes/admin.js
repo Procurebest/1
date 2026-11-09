@@ -476,9 +476,9 @@ async function examsAdmin(c) {
     <div class="row between"><h3 style="margin:0">${c.pick(lv.title_en, lv.title_bn)} <span class="tag">${lv.code}</span> ${lv.published ? html`<span class="tag ok">${c.L("Visible", "দেখানো হচ্ছে")}</span>` : html`<span class="tag warn">${c.L("Hidden", "লুকানো")}</span>`}</h3>
       <span class="small ${lv.published_q < lv.question_count ? "" : "muted"}" style="${lv.published_q < lv.question_count ? "color:var(--err)" : ""}">${c.d(lv.published_q)} ${c.L("published questions", "প্রকাশিত প্রশ্ন")} · <a href="/admin/questions?level=${lv.code}">${c.L("Manage", "পরিচালনা")}</a></span></div>
     <div class="form-grid" style="margin-top:16px">
-      ${fld("title_en", c.L("Name (English)", "নাম (ইংরেজি)"), lv.title_en, { third: true })}${fld("title_bn", c.L("Name (Bengali)", "নাম (বাংলা)"), lv.title_bn, { third: true })}
+      ${fld("title_en", c.L("Name (English)", "নাম (ইংরেজি)"), lv.title_en, { third: true })}
       ${sel("published", c.L("Show on the site", "সাইটে দেখানো"), lv.published, [[1, c.L("Yes", "হ্যাঁ")], [0, c.L("No (hidden)", "না (লুকানো)")]], { third: true })}
-      ${fld("desc_en", c.L("Description (English)", "বিবরণ (ইংরেজি)"), lv.desc_en, { rows: 2 })}${fld("desc_bn", c.L("Description (Bengali)", "বিবরণ (বাংলা)"), lv.desc_bn, { rows: 2 })}
+      ${fld("desc_en", c.L("Description (English)", "বিবরণ (ইংরেজি)"), lv.desc_en, { rows: 2 })}
       ${fld("question_count", c.L("Questions per exam", "প্রতি পরীক্ষায় প্রশ্ন"), lv.question_count, { type: "number", third: true, attrs: 'min="5" max="100"' })}
       ${fld("time_limit_min", c.L("Time limit (minutes)", "সময় (মিনিট)"), lv.time_limit_min, { type: "number", third: true, attrs: 'min="5" max="240"' })}
       ${fld("pass_mark", c.L("Pass mark (%)", "পাস নম্বর (%)"), lv.pass_mark, { type: "number", third: true, attrs: 'min="1" max="100"' })}
@@ -499,7 +499,7 @@ async function examsAdmin(c) {
     <h3>${c.L("New exam", "নতুন পরীক্ষা")}</h3>
     <p class="help">${c.L("The new exam starts hidden. Add at least as many questions as \"Questions per exam\" (Question bank → New question, or Import CSV), then set it to visible.", "নতুন পরীক্ষা প্রথমে লুকানো থাকবে। \"প্রতি পরীক্ষায় প্রশ্ন\"-এর সমান বা বেশি প্রশ্ন যোগ করুন (প্রশ্নব্যাংক → নতুন প্রশ্ন, বা CSV ইমপোর্ট), তারপর দেখানো চালু করুন।")}</p>
     <div class="form-grid" style="margin-top:12px">
-      ${fld("title_en", c.L("Name (English)", "নাম (ইংরেজি)"), "", { third: true, required: true })}${fld("title_bn", c.L("Name (Bengali)", "নাম (বাংলা)"), "", { third: true })}
+      ${fld("title_en", c.L("Name (English)", "নাম (ইংরেজি)"), "", { third: true, required: true })}
       ${fld("code", c.L("Short code (English letters)", "সংক্ষিপ্ত কোড (ইংরেজি অক্ষর)"), "", { third: true, help: c.L("Used in the web address, e.g. negotiation → /exams/negotiation. Leave empty to create it from the name.", "ওয়েব ঠিকানায় ব্যবহৃত হবে, যেমন negotiation → /exams/negotiation। ফাঁকা রাখলে নাম থেকে তৈরি হবে।") })}
       ${fld("price", c.L("Price in taka (0 = free)", "মূল্য টাকায় (০ = ফ্রি)"), 0, { type: "number", third: true, attrs: 'min="0"' })}
       ${sel("certificate", c.L("Certificate when passed", "পাস করলে সার্টিফিকেট"), 1, [[1, c.L("Yes", "হ্যাঁ")], [0, c.L("No — result can be shared", "না — শুধু ফলাফল শেয়ার")]], { third: true })}
@@ -583,14 +583,14 @@ async function questionEdit(c) {
     ${sel("level_code", c.L("Level", "স্তর"), q.level_code, lvs.map((l) => [l.code, c.pick(l.title_en, l.title_bn)]), { third: true })}
     <div class="field third"><label for="f-topic">${c.L("Topic", "বিষয়")}</label><input id="f-topic" name="topic" value="${q.topic}" list="topics"><datalist id="topics">${Object.keys(TOPICS).map((k) => html`<option value="${k}">${topicLabel(k, c.lang)}</option>`)}</datalist></div>
     ${sel("status", c.L("Status", "অবস্থা"), q.status, [["published", c.L("Published", "প্রকাশিত")], ["draft", c.L("Draft (not used)", "খসড়া (ব্যবহৃত হবে না)")]], { third: true })}
-    ${fld("text_en", c.L("Question (English)", "প্রশ্ন (ইংরেজি)"), q.text_en, { rows: 3, required: true })}${fld("text_bn", c.L("Question (Bengali)", "প্রশ্ন (বাংলা)"), q.text_bn, { rows: 3 })}
+    ${fld("text_en", c.L("Question (English)", "প্রশ্ন (ইংরেজি)"), q.text_en, { rows: 3, required: true })}
   </div>
   <h3 style="margin-top:24px">${c.L("Options — tick the correct one", "বিকল্প — সঠিকটিতে টিক দিন")}</h3>
   <div class="stack">${opts.slice(0, 6).concat(opts.length < 6 ? Array(Math.max(0, 6 - opts.length)).fill({ en: "", bn: "" }) : []).slice(0, 6).map((o, i) => html`
     <div class="q-opt-row"><label class="check" title="${c.L("Correct answer", "সঠিক উত্তর")}"><input type="radio" name="correct" value="${i}" ${q.correct_index === i ? raw("checked") : ""}> <strong>${c.d(i + 1)}</strong></label>
-    <input name="opt_en_${i}" value="${o.en || ""}" placeholder="${c.L("Option (English)", "বিকল্প (ইংরেজি)")}"><input name="opt_bn_${i}" value="${o.bn || ""}" placeholder="${c.L("Option (Bengali)", "বিকল্প (বাংলা)")}"></div>`)}</div>
+    <input name="opt_en_${i}" value="${o.en || ""}" placeholder="${c.L("Option (English)", "বিকল্প (ইংরেজি)")}"></div>`)}</div>
   <p class="help" style="margin-top:8px">${c.L("At least 2 options. Empty rows are ignored. The order is shuffled for every candidate.", "কমপক্ষে ২টি বিকল্প। ফাঁকা সারি বাদ যাবে। প্রত্যেক পরীক্ষার্থীর জন্য ক্রম এলোমেলো হবে।")}</p>
-  <div class="form-grid" style="margin-top:16px">${fld("explanation_en", c.L("Explanation (English, not shown to candidates)", "ব্যাখ্যা (ইংরেজি, পরীক্ষার্থীদের দেখানো হয় না)"), q.explanation_en, { rows: 2 })}${fld("explanation_bn", c.L("Explanation (Bengali)", "ব্যাখ্যা (বাংলা)"), q.explanation_bn, { rows: 2 })}</div>
+  <div class="form-grid" style="margin-top:16px">${fld("explanation_en", c.L("Explanation (English, not shown to candidates)", "ব্যাখ্যা (ইংরেজি, পরীক্ষার্থীদের দেখানো হয় না)"), q.explanation_en, { rows: 2 })}</div>
   <div class="form-actions"><button class="btn btn-primary" type="submit">${c.L("Save", "সেভ করুন")}</button><a class="btn btn-ghost" href="/admin/questions?level=${q.level_code}">${c.L("Cancel", "বাতিল")}</a></div></form>
   ${!isNew ? html`<form method="post" action="/admin/questions/${q.id}/delete" style="margin-top:16px" data-confirm="${c.L("Delete this question? Past results are kept.", "প্রশ্নটি মুছবেন? আগের ফলাফল থেকে যাবে।")}">${await csrfInput(c)}<button class="btn btn-ghost btn-sm" style="color:var(--err)">${icon("trash", 15)} ${c.L("Delete question", "প্রশ্ন মুছুন")}</button></form>` : ""}`;
   return adminLayout(c, { title: isNew ? c.L("New question", "নতুন প্রশ্ন") : c.L(`Question #${q.id}`, `প্রশ্ন #${q.id}`), body, active: "questions" });
@@ -601,10 +601,10 @@ function questionFromForm(f) {
   let correct = -1;
   const chosen = toInt(f.get("correct"), -1);
   for (let i = 0; i < 6; i++) {
-    const en = clip(f.get(`opt_en_${i}`), 400), bn = clip(f.get(`opt_bn_${i}`), 400);
-    if (!en && !bn) continue;
+    const en = clip(f.get(`opt_en_${i}`), 400);
+    if (!en) continue;
     if (i === chosen) correct = opts.length;
-    opts.push({ en: en || bn, bn });
+    opts.push({ en, bn: "" });
   }
   return { opts, correct };
 }
@@ -625,56 +625,51 @@ async function questionSave(c) {
   return c.redirect(back(`/admin/questions/${id}`, "saved"));
 }
 
-const CSV_HEAD = ["id", "level", "topic", "status", "question_en", "question_bn", "option1_en", "option1_bn", "option2_en", "option2_bn", "option3_en", "option3_bn", "option4_en", "option4_bn", "correct", "explanation_en", "explanation_bn"];
-async function questionsExport(c) {
-  const level = c.url.searchParams.get("level");
-  const rows = await all(c.env, `SELECT * FROM questions ${level ? "WHERE level_code=?" : ""} ORDER BY level_code, id`, ...(level ? [level] : []));
-  const out = [CSV_HEAD, ...rows.map((q) => {
-    const o = parseJson(q.options_json, []);
-    const cells = [q.id, q.level_code, q.topic, q.status, q.text_en, q.text_bn];
-    for (let i = 0; i < 4; i++) cells.push(o[i] ? o[i].en : "", o[i] ? o[i].bn : "");
-    return [...cells, q.correct_index + 1, q.explanation_en, q.explanation_bn];
-  })];
-  return new Response(toCsv(out), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="procurebest-questions${level ? "-" + level : ""}.csv"` } });
+// Questions are English only. The CSV has these columns (old files with *_en / *_bn columns still import).
+const CSV_HEAD = ["id", "level", "topic", "status", "question", "option1", "option2", "option3", "option4", "correct", "explanation"];
+const IMPORT_MAX = 5000;
+// Header names people actually use → our column names.
+function csvKey(h) {
+  const k = String(h || "").replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[\s\-.]+/g, "_");
+  if (["question", "question_en", "question_text", "text", "text_en", "q"].includes(k)) return "question";
+  let m = k.match(/^(?:option|opt|choice)_?([1-6a-f])(?:_en)?$/);
+  if (m) return "option" + ("abcdef".includes(m[1]) ? "abcdef".indexOf(m[1]) + 1 : m[1]);
+  if (["correct", "answer", "correct_answer", "correct_option", "right_answer", "ans"].includes(k)) return "correct";
+  if (["explanation", "explanation_en", "reason"].includes(k)) return "explanation";
+  if (["level", "level_code", "exam", "exam_code"].includes(k)) return "level";
+  if (["topic", "subject", "category"].includes(k)) return "topic";
+  return k;
 }
-async function questionsImportPage(c, report = null) {
-  const body = html`<div class="panel" style="margin-bottom:20px">
-    <p>${c.L("Upload a CSV file with these columns (export the current bank to get a ready template). Rows with an id update that question; rows without an id are added. Questions can be written in Excel and saved as \"CSV UTF-8\".", "এই কলামগুলো সহ একটি CSV ফাইল আপলোড করুন (তৈরি টেমপ্লেট পেতে বর্তমান প্রশ্নব্যাংক এক্সপোর্ট করুন)। id থাকা সারি সেই প্রশ্ন আপডেট করবে; id ছাড়া সারি নতুন যোগ হবে। এক্সেলে লিখে \"CSV UTF-8\" হিসেবে সেভ করুন।")}</p>
-    <p class="mono small" style="word-break:break-all">${CSV_HEAD.join(", ")}</p>
-    <p class="small muted">${c.L("level = the exam's short code", "level = পরীক্ষার সংক্ষিপ্ত কোড")} (${(await all(c.env, "SELECT code FROM exam_levels ORDER BY sort")).map((l) => l.code).join(", ")}) · ${c.L("correct = 1–4 · status = published or draft · options 3 and 4 may be empty.", "correct = ১–৪ · status = published বা draft · ৩ ও ৪ নম্বর বিকল্প ফাঁকা থাকতে পারে।")}</p>
-    <form method="post" action="/admin/questions/import" enctype="multipart/form-data" style="margin-top:16px">${await csrfInput(c)}
-      <input type="file" name="csv" accept=".csv,text/csv" required> <button class="btn btn-primary" type="submit">${icon("upload", 16)} ${c.L("Import", "ইমপোর্ট")}</button></form></div>
-  ${report ? html`<div class="panel"><h3>${c.L("Result", "ফলাফল")}</h3><p>${c.L(`Added ${report.added}, updated ${report.updated}, skipped ${report.errors.length}.`, `যোগ হয়েছে ${report.added}, আপডেট ${report.updated}, বাদ ${report.errors.length}।`)}</p>
-    ${report.errors.length ? html`<ul class="small">${report.errors.slice(0, 50).map((e) => html`<li>${c.L("Line", "লাইন")} ${e.line}: ${e.msg}</li>`)}</ul>` : ""}</div>` : ""}`;
-  return adminLayout(c, { title: c.L("Import questions", "প্রশ্ন ইমপোর্ট"), body, active: "questions" });
-}
-async function questionsImport(c) {
-  const f = await c.form();
-  const file = f.get("csv");
-  if (!file || typeof file === "string") return questionsImportPage(c, { added: 0, updated: 0, errors: [{ line: 0, msg: "No file" }] });
-  const rows = parseCsv(await file.text());
-  const head = (rows.shift() || []).map((h) => h.trim().toLowerCase());
-  const idx = Object.fromEntries(CSV_HEAD.map((h) => [h, head.indexOf(h)]));
-  const levelsOk = (await all(c.env, "SELECT code FROM exam_levels")).map((l) => l.code);
+// Checks one question row and returns [values] or an error message. rows: objects keyed by csvKey().
+async function importQuestions(c, rows, firstLine) {
+  const lvs = await all(c.env, "SELECT code, title_en FROM exam_levels");
   const report = { added: 0, updated: 0, errors: [] };
   const inserts = [], updates = [];
-  if (rows.length > 300) report.errors.push({ line: 302, msg: c.L("Only the first 300 rows are imported at a time. Split larger files.", "একবারে প্রথম ৩০০টি সারি ইমপোর্ট হয়। বড় ফাইল ভাগ করে দিন।") });
-  rows.slice(0, 300).forEach((r, n) => {
-    const g = (k) => (idx[k] >= 0 ? String(r[idx[k]] ?? "").trim() : "");
-    const line = n + 2;
-    const level = g("level").toLowerCase();
-    if (!levelsOk.includes(level)) { report.errors.push({ line, msg: "level" }); return; }
-    if (!g("question_en")) { report.errors.push({ line, msg: "question_en" }); return; }
+  rows.forEach((r, n) => {
+    const g = (k) => String(r[k] ?? "").trim();
+    const line = firstLine + n;
+    const lvRaw = g("level").toLowerCase();
+    const lv = lvs.find((l) => l.code === lvRaw || String(l.title_en || "").toLowerCase() === lvRaw);
+    if (!lv) { report.errors.push({ line, msg: c.L(`unknown level “${g("level")}” — use: ${lvs.map((l) => l.code).join(", ")}`, `অজানা level “${g("level")}” — লিখুন: ${lvs.map((l) => l.code).join(", ")}`) }); return; }
+    const question = g("question");
+    if (!question) { report.errors.push({ line, msg: c.L("the question is empty", "প্রশ্ন ফাঁকা") }); return; }
     const opts = [];
-    for (let i = 1; i <= 4; i++) { const en = g(`option${i}_en`), bn = g(`option${i}_bn`); if (en || bn) opts.push({ en: en || bn, bn }); }
-    const correct = toInt(g("correct"), 0) - 1;
-    if (opts.length < 2 || correct < 0 || correct >= opts.length) { report.errors.push({ line, msg: "options / correct" }); return; }
-    const vals = [level, g("topic").toLowerCase().replace(/\s+/g, "_"), g("question_en").slice(0, 2000), g("question_bn").slice(0, 2000), JSON.stringify(opts), correct,
-      g("explanation_en").slice(0, 2000), g("explanation_bn").slice(0, 2000), g("status") === "draft" ? "draft" : "published", nowIso()];
+    let correct = -1;
+    const ans = g("correct");
+    for (let i = 1; i <= 6; i++) {
+      const en = g(`option${i}`);
+      if (!en) continue;
+      if (ans === String(i) || ans.toUpperCase() === "ABCDEF"[i - 1] || ans.toLowerCase() === en.toLowerCase()) correct = opts.length;
+      opts.push({ en: en.slice(0, 400), bn: "" });
+    }
+    if (opts.length < 2) { report.errors.push({ line, msg: c.L("needs at least 2 options", "কমপক্ষে ২টি অপশন লাগবে") }); return; }
+    if (correct < 0) { report.errors.push({ line, msg: c.L(`“correct” must be 1–${opts.length}, A–D or the option text`, `“correct” ঘরে ১–${opts.length}, A–D বা অপশনের লেখা দিন`) }); return; }
+    const vals = [lv.code, g("topic").toLowerCase().replace(/\s+/g, "_").slice(0, 40), question.slice(0, 2000), "", JSON.stringify(opts), correct,
+      g("explanation").slice(0, 2000), "", g("status").toLowerCase() === "draft" ? "draft" : "published", nowIso()];
     const id = toInt(g("id"), 0);
     if (id) { updates.push([id, ...vals]); report.updated++; } else { inserts.push([...vals, "csv"]); report.added++; }
   });
-  // Many rows per statement keeps a 300-row import far below the free plan's per-request query limit.
+  // 9 rows per statement keeps every statement under D1's 100-value limit.
   const COLS = ["level_code", "topic", "text_en", "text_bn", "options_json", "correct_index", "explanation_en", "explanation_bn", "status", "updated_at"];
   const stmts = [];
   for (let i = 0; i < inserts.length; i += 9) {
@@ -687,7 +682,57 @@ async function questionsImport(c) {
       UPDATE questions SET ${COLS.map((k) => `${k}=v.${k}`).join(",")} FROM v WHERE questions.id=v.id`).bind(...chunk.flat()));
   }
   if (stmts.length) await c.env.DB.batch(stmts);
+  return report;
+}
+async function questionsExport(c) {
+  const level = c.url.searchParams.get("level");
+  const rows = await all(c.env, `SELECT * FROM questions ${level ? "WHERE level_code=?" : ""} ORDER BY level_code, id`, ...(level ? [level] : []));
+  const out = [CSV_HEAD, ...rows.map((q) => {
+    const o = parseJson(q.options_json, []);
+    const cells = [q.id, q.level_code, q.topic, q.status, q.text_en || q.text_bn];
+    for (let i = 0; i < 4; i++) cells.push(o[i] ? o[i].en || o[i].bn : "");
+    return [...cells, q.correct_index + 1, q.explanation_en];
+  })];
+  return new Response(toCsv(out), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="procurebest-questions${level ? "-" + level : ""}.csv"` } });
+}
+async function questionsImportPage(c, report = null) {
+  const codes = (await all(c.env, "SELECT code FROM exam_levels ORDER BY sort")).map((l) => l.code).join(", ");
+  const body = html`<div class="panel" style="margin-bottom:20px" data-q-import>
+    <p>${c.L("Upload a CSV file with these columns (English only). Rows with an id update that question; rows without an id are added. Easiest: press “Download CSV” on the question bank to get a ready template, fill it in Excel and save as “CSV UTF-8”.", "নিচের কলামগুলো সহ একটি CSV ফাইল দিন (শুধু ইংরেজি)। id থাকা সারি সেই প্রশ্ন আপডেট করবে; id ছাড়া সারি নতুন যোগ হবে। সহজ উপায়: প্রশ্নব্যাংকে “CSV” চেপে তৈরি টেমপ্লেট নিন, এক্সেলে পূরণ করে “CSV UTF-8” হিসেবে সেভ করুন।")}</p>
+    <p class="mono small" style="word-break:break-all">${CSV_HEAD.join(", ")}</p>
+    <p class="small muted">level = ${codes} · ${c.L("correct = 1–4 or A–D · status = published or draft · options 3 and 4 may be empty · up to 5,000 questions per file.", "correct = ১–৪ অথবা A–D · status = published বা draft · ৩ ও ৪ নম্বর অপশন ফাঁকা থাকতে পারে · এক ফাইলে সর্বোচ্চ ৫,০০০ প্রশ্ন।")}</p>
+    <form method="post" action="/admin/questions/import" enctype="multipart/form-data" style="margin-top:16px" data-q-import-form>${await csrfInput(c)}
+      <input type="file" name="csv" accept=".csv,.txt,text/csv" required> <button class="btn btn-primary" type="submit">${icon("upload", 16)} ${c.L("Import", "ইমপোর্ট")}</button></form>
+    <div class="progress" data-q-progress hidden style="max-width:none;margin-top:14px"><i style="width:0%"></i></div>
+    <p class="small" data-q-status></p><ul class="small" data-q-errors></ul></div>
+  ${report ? html`<div class="panel"><h3>${c.L("Result", "ফলাফল")}</h3><p>${c.L(`Added ${report.added}, updated ${report.updated}, skipped ${report.errors.length}.`, `যোগ হয়েছে ${report.added}, আপডেট ${report.updated}, বাদ ${report.errors.length}।`)}</p>
+    ${report.errors.length ? html`<ul class="small">${report.errors.slice(0, 50).map((e) => html`<li>${c.L("Line", "লাইন")} ${e.line}: ${e.msg}</li>`)}</ul>` : ""}</div>` : ""}`;
+  return adminLayout(c, { title: c.L("Import questions", "প্রশ্ন ইমপোর্ট"), body, active: "questions" });
+}
+// Text of an uploaded CSV: UTF-8, or the older Windows (ANSI) encoding Excel sometimes uses.
+function decodeCsv(buf) {
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(buf); } catch { return new TextDecoder("windows-1252").decode(buf); }
+}
+const csvDelimiter = (text) => { const first = text.split(/\r?\n/, 1)[0] || ""; const n = (ch) => first.split(ch).length; return n(";") > n(",") && n(";") > n("\t") ? ";" : n("\t") > n(",") ? "\t" : ","; };
+const rowsToObjects = (rows) => { const head = (rows.shift() || []).map(csvKey); return rows.map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ""]))); };
+// Form upload (works without JavaScript; the page's script normally sends the file in small batches instead).
+async function questionsImport(c) {
+  const f = await c.form();
+  const file = f.get("csv");
+  if (!file || typeof file === "string") return questionsImportPage(c, { added: 0, updated: 0, errors: [{ line: 0, msg: "No file" }] });
+  const text = decodeCsv(await file.arrayBuffer());
+  const objs = rowsToObjects(parseCsv(text, csvDelimiter(text)));
+  const report = await importQuestions(c, objs.slice(0, 300), 2);
+  if (objs.length > 300) report.errors.push({ line: 302, msg: c.L("Only 300 rows are imported this way — use a browser with JavaScript for bigger files.", "এভাবে ৩০০ সারি পর্যন্ত ইমপোর্ট হয় — বড় ফাইলের জন্য সাধারণ ব্রাউজার ব্যবহার করুন।") });
   return questionsImportPage(c, report);
+}
+// Batch upload from the import page: { rows: [{question, option1, …}], first_line }
+async function questionsImportApi(c) {
+  const b = await c.body();
+  const rows = Array.isArray(b.rows) ? b.rows.slice(0, 100) : [];
+  const norm = rows.map((r) => Object.fromEntries(Object.entries(r || {}).map(([k, v]) => [csvKey(k), String(v ?? "").slice(0, 2000)])));
+  const report = await importQuestions(c, norm, Math.max(2, toInt(b.first_line, 2)));
+  return c.json({ ok: true, ...report });
 }
 
 // ------------------------------------------------------------------ orders
@@ -1172,6 +1217,7 @@ export function registerAdmin(r) {
   r.get("/admin/questions/export", guard(questionsExport));
   r.get("/admin/questions/import", guard((c) => questionsImportPage(c)));
   r.post("/admin/questions/import", guard(questionsImport, { form: true }));
+  r.post("/admin/api/questions/import", guard(questionsImportApi, { api: true }));
   r.get("/admin/questions/:id", guard(questionEdit));
   r.post("/admin/questions/:id/delete", guard(async (c) => { await run(c.env, "DELETE FROM questions WHERE id=?", toInt(c.params.id)); return c.redirect(back("/admin/questions", "deleted")); }, { form: true }));
   r.post("/admin/questions/:id", guard(questionSave, { form: true }));

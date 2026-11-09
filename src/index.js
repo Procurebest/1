@@ -31,6 +31,14 @@ export default {
     try {
       if (!env.DB) return new Response("ProcureBest: the D1 database is not connected. See docs/SETUP-GUIDE-BN.md, step 4.", { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } });
       await ensureSchema(env);
+      // Old addresses from the previous PHP website (e.g. /about.php) → the new page, permanently.
+      if (/\.php$/i.test(path) || path.startsWith("/wp-")) {
+        const name = path.replace(/^\/+|\.php$/gi, "").toLowerCase();
+        if (name === "sitemap") return c.finish(c.redirect("/sitemap.xml", 301));
+        const map = { index: "/", home: "/", about: "/about", "about-us": "/about", contact: "/contact", "contact-us": "/contact", privacy: "/privacy", terms: "/terms", library: "/library", blog: "/blog", exams: "/exams", calculators: "/calculators" };
+        const to = map[name] || "/";
+        return c.finish(c.redirect(c.p(to, (await c.settings()).default_lang === "bn" && !/^\/exams/.test(to) ? "bn" : "en"), 301));
+      }
       // Paths without a language prefix, e.g. /calculators → /en/calculators
       if (!["en", "bn", "api", "admin", "dl", "media", "preview", "healthz", "sitemap.xml", "robots.txt", ""].includes(seg) && !seg.includes(".")) {
         return c.finish(c.redirect(`/${(await c.settings()).default_lang}${path}${c.url.search}`, 302));

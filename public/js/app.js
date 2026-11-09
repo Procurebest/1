@@ -141,6 +141,12 @@
       document.body.style.overflow = open ? "hidden" : "";
     });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && menu.classList.contains("open")) toggle.click(); });
+    menu.addEventListener("click", (e) => {
+      if (!e.target.closest("a") || !menu.classList.contains("open")) return;
+      menu.classList.remove("open");
+      toggle.setAttribute("aria-expanded", "false");
+      document.body.style.overflow = "";
+    });
   }
 
   // ------------------------------------------------------------ searchable lists

@@ -17,13 +17,15 @@ function init() {
   const L = (o) => tr(o, lang);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const dg = (n) => digits(n, lang);
-  const storeKey = "pb_calc_" + def.slug;
+  const storeKey = "pb_calc2_" + def.slug;
   // Labels, help texts and notes may depend on other inputs (e.g. the TCO category).
   const dyn = (x, s) => (typeof x === "function" ? x(s || state || {}) : x);
   const LL = (en, bn) => (lang === "bn" ? bn : en);
 
   // ------------------------------------------------------------ state
-  const blank = (fields) => Object.fromEntries(fields.filter((f) => f.type !== "note").map((f) => [f.key, f.default ?? ""]));
+  // Number boxes start empty (no pre-filled 0 or example figures); dropdowns and ticks keep their default.
+  const isNumField = (f) => !["text", "select", "checkbox", "note"].includes(f.type);
+  const blank = (fields) => Object.fromEntries(fields.filter((f) => f.type !== "note").map((f) => [f.key, isNumField(f) ? "" : f.default ?? ""]));
   function defaults() {
     const s = blank(def.fields);
     for (const g of def.groups || []) s[g.key] = Array.from({ length: g.defaultCount || g.min }, () => blank(g.fields));
@@ -72,7 +74,7 @@ function init() {
     } else if (f.type === "text") {
       control = `<input id="${id}" type="text" data-key="${f.key}" ${attrs} value="${esc(value ?? "")}" maxlength="${f.maxlength || 120}" autocomplete="off"${f.placeholder ? ` placeholder="${esc(L(dyn(f.placeholder)))}"${dynAttr("ph", f.placeholder)}` : ""}>`;
     } else {
-      control = `<div class="${f.type === "percent" ? "input-unit" : ""}"><input id="${id}" type="text" inputmode="${f.type === "integer" ? "numeric" : "decimal"}" data-key="${f.key}" ${attrs} value="${esc(inputVal(value, f))}" autocomplete="off">${f.type === "percent" ? "<span>%</span>" : ""}</div>`;
+      control = `<div class="${f.type === "percent" ? "input-unit" : ""}"><input id="${id}" type="text" inputmode="${f.type === "integer" ? "numeric" : "decimal"}" data-key="${f.key}" ${attrs} value="${esc(inputVal(value, f))}" autocomplete="off"${f.placeholder ? ` placeholder="${esc(L(dyn(f.placeholder)))}"` : ""}>${f.type === "percent" ? "<span>%</span>" : ""}</div>`;
     }
     const opt = f.required === false && f.type === "text" ? ` <span class="muted small">(${esc(t("optional"))})</span>` : "";
     return `<div class="field ${w}" data-path="${esc(path)}"${show}><label for="${id}">${labelText}${opt}</label>${control}
@@ -212,7 +214,7 @@ function init() {
     }
     let v = parseNumber(raw);
     if (Number.isNaN(v)) return [null, T.msg.number];
-    if (v === null) return f.required === false ? [f.default ?? null, null] : [null, T.msg.required];
+    if (v === null) return f.required === false || typeof f.default === "number" ? [f.default ?? null, null] : [null, T.msg.required];
     if (f.type === "integer") { if (Math.abs(v - Math.round(v)) > 1e-9) return [null, T.msg.integer]; v = Math.round(v); }
     if (f.min !== undefined && v < f.min) return [null, T.msg.min.replace("{v}", dg(f.min))];
     if (f.gt !== undefined && v <= f.gt) return [null, T.msg.gt.replace("{v}", dg(f.gt))];
@@ -343,7 +345,8 @@ function init() {
   }
   function tableHtml(tb, print = false) {
     const inner = tableInner(tb);
-    if (tb.collapsed && !print) return `<details class="tbl-more"><summary>${esc(L(tb.title))}</summary>${inner}</details>`;
+    if (tb.collapsed && print) return "";
+    if (tb.collapsed) return `<details class="tbl-more"><summary>${esc(L(tb.title))}</summary>${inner}</details>`;
     return `<h3 style="font-size:17px;margin:28px 0 10px">${esc(L(tb.title))}</h3>${inner}`;
   }
   function tableInner(tb) {
@@ -571,7 +574,7 @@ function init() {
     const ok = await window.PB.requireEmail();
     if (!ok) return;
     window.PB.post("/api/calc-export", { slug: def.slug, format: kind }).catch(() => {});
-    if (kind === "xlsx") downloadXlsx(); else printReport();
+    if (kind === "xlsx") downloadXlsx().catch((err) => console.error(err)); else printReport();
   });
 
   function inputRows(values) {
@@ -582,8 +585,9 @@ function init() {
       return v;
     };
     const sectionTitle = (f) => { const s = (def.sections || []).find((x) => x.key === f.section); return s ? L(s.title) : ""; };
-    for (const f of def.fields) if (f.type !== "note" && visible(f, values) && values[f.key] !== null && values[f.key] !== "") rows.push([sectionTitle(f), L(dyn(f.label, values)), show(f, values[f.key])]);
-    for (const g of def.groups || []) values[g.key].forEach((item, i) => g.fields.forEach((f) => { if (item[f.key] !== null && item[f.key] !== "" && !(f.type === "checkbox" && !item[f.key])) rows.push([`${L(g.itemLabel)} ${dg(i + 1)}`, L(dyn(f.label, values)), show(f, item[f.key])]); }));
+    // Zero / empty boxes are left out so the report stays short.
+    for (const f of def.fields) if (f.type !== "note" && visible(f, values) && values[f.key] !== null && values[f.key] !== "" && values[f.key] !== 0) rows.push([sectionTitle(f), L(dyn(f.label, values)), show(f, values[f.key])]);
+    for (const g of def.groups || []) values[g.key].forEach((item, i) => g.fields.forEach((f) => { if (item[f.key] !== null && item[f.key] !== "" && item[f.key] !== 0 && !(f.type === "checkbox" && !item[f.key])) rows.push([`${L(g.itemLabel)} ${dg(i + 1)}`, L(dyn(f.label, values)), show(f, item[f.key])]); }));
     if (def.custom === "cs") {
       values.suppliers.forEach((s, j) => CS_SUPPLIER_FIELDS.forEach((f) => { if (visible(f, values) && s[f.key] !== null && s[f.key] !== "") rows.push([`${t("supplier")} ${j + 1}`, L(f.label), show(f, s[f.key])]); }));
       values.items.forEach((it, i) => {
@@ -609,33 +613,59 @@ function init() {
     return { v: String(v), s: opts.hl ? "hl" : opts.bold ? "bold" : undefined };
   };
 
-  function downloadXlsx() {
+  // The ProcureBest logo as a PNG (Excel cannot show SVG). Drawn once from /img/logo.svg.
+  let logoCache;
+  function logoPng() {
+    if (logoCache !== undefined) return Promise.resolve(logoCache);
+    return new Promise((resolve) => {
+      const img = new Image();
+      const done = (v) => { logoCache = v; resolve(v); };
+      img.onload = () => {
+        try {
+          const W = 728, H = 128, cv = document.createElement("canvas");
+          cv.width = W; cv.height = H;
+          cv.getContext("2d").drawImage(img, 0, 0, W, H);
+          cv.toBlob((b) => (b ? b.arrayBuffer().then((buf) => done(new Uint8Array(buf)), () => done(null)) : done(null)), "image/png");
+        } catch { done(null); }
+      };
+      img.onerror = () => done(null);
+      img.src = "/img/logo.svg";
+      setTimeout(() => { if (logoCache === undefined) done(null); }, 3000);
+    });
+  }
+
+  // One simple sheet: logo and title, key results, the main tables, your inputs and a short note.
+  async function downloadXlsx() {
     const { values, result: r, at } = last;
     const title = L(def.title);
-    const summary = [[{ v: title, s: "title" }], [{ v: `${t("report_subtitle")} · ProcureBest.com`, s: "subtitle" }],
-      [{ v: `${t("generated")}: ${formatDate(at, lang, true)}`, s: "subtitle" }], [],
-      [{ v: t("key_results"), s: "head" }, { v: t("value"), s: "head" }, { v: "", s: "head" }, { v: LL("In short", "সংক্ষেপে"), s: "head" }]];
-    for (const m of [...r.headline, ...r.details]) summary.push([{ v: L(m.label), s: m.highlight ? "bold" : undefined }, xcell(m.value, m.fmt, m.currency, { bold: m.highlight }), m.note ? { v: L(m.note), s: "muted" } : null, magnitude(m.value, m.fmt) ? { v: magnitude(m.value, m.fmt), s: "muted" } : null]);
-    if (r.warnings.length) { summary.push([], [{ v: t("warnings"), s: "bold" }]); r.warnings.forEach((w) => summary.push([{ v: L(w), s: "wrap" }])); }
-    const sheets = [{ name: t("sheet_summary"), widths: [52, 24, 40, 18], rows: summary }];
-    const inputs = [[{ v: t("section"), s: "head" }, { v: t("input"), s: "head" }, { v: t("value"), s: "head" }],
-      ...inputRows(values).map(([a, b, c]) => [a, b, typeof c === "number" ? { v: c, s: "num" } : c])];
-    sheets.push({ name: t("sheet_inputs"), widths: [30, 52, 26], rows: inputs, freeze: 1 });
+    const rows = [[{ v: title, s: "title" }], [{ v: `ProcureBest.com · ${formatDate(at, lang, true)}`, s: "subtitle" }], []];
+    rows.push([{ v: t("key_results"), s: "head" }, { v: t("value"), s: "head" }, { v: "", s: "head" }]);
+    for (const m of [...r.headline, ...r.details]) rows.push([{ v: L(m.label), s: m.highlight ? "bold" : undefined }, xcell(m.value, m.fmt, m.currency, { bold: m.highlight }), m.note ? { v: L(m.note), s: "muted" } : null]);
+    if (r.warnings.length) { rows.push([]); r.warnings.forEach((w) => rows.push([{ v: "⚠ " + L(w), s: "wrap" }])); }
+    let maxCols = 3;
     for (const tb of r.tables) {
-      const rows = [tb.columns.map((c) => ({ v: L(c.label), s: "head" }))];
+      if (tb.collapsed) continue;
+      maxCols = Math.max(maxCols, tb.columns.length);
+      rows.push([], [{ v: L(tb.title), s: "bold" }], tb.columns.map((c) => ({ v: L(c.label), s: "head" })));
       tb.rows.forEach((row, i) => {
         const hl = tb.highlightRow === i, bold = tb.totalRow && i === tb.rows.length - 1;
         rows.push(row.map((cell, k) => { const c = tb.columns[k] || { fmt: "text" }; return xcell(cell, c.fmt, c.currency, { hl, bold }); }));
       });
-      sheets.push({ name: L(tb.title), widths: tb.columns.map((c, k) => (k === 0 || c.fmt === "text" ? 30 : 18)), rows, freeze: 1 });
     }
-    const method = [[{ v: t("method_title"), s: "title" }], []];
-    def.method.forEach((m, i) => method.push([{ v: `${i + 1}. ${L(m)}`, s: "wrap" }]));
-    if (r.notes.length) { method.push([], [{ v: t("notes"), s: "bold" }]); r.notes.forEach((n) => method.push([{ v: L(n), s: "wrap" }])); }
-    if (def.disclaimer) method.push([], [{ v: L(def.disclaimer), s: "wrap" }]);
-    method.push([], [{ v: t("footer_disclaimer"), s: "muted" }]);
-    sheets.push({ name: t("sheet_method"), widths: [120], rows: method });
-    const bytes = buildXlsx(sheets, { title });
+    rows.push([], [{ v: t("your_inputs"), s: "bold" }]);
+    let group = null;
+    for (const [g, label, val] of inputRows(values)) {
+      if (g && g !== group) { group = g; rows.push([{ v: g, s: "head" }, { v: "", s: "head" }]); }
+      rows.push([label, typeof val === "number" ? { v: val, s: "num" } : val]);
+    }
+    rows.push([]);
+    for (const n of r.notes) rows.push([{ v: L(n), s: "muted" }]);
+    rows.push([{ v: t("footer_disclaimer"), s: "muted" }]);
+    const widths = [52, ...Array(Math.max(2, maxCols - 1)).fill(20)];
+    const png = await logoPng();
+    const sheet = { name: LL("Report", "রিপোর্ট"), widths, rows, heights: { 0: 34 } };
+    if (png) sheet.image = { png, col: Math.max(2, widths.length - 2), row: 0, w: 182, h: 32 };
+    const bytes = buildXlsx([sheet], { title });
     const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const a = document.createElement("a");
     const d = at.toISOString().slice(0, 10).replace(/-/g, "");
@@ -649,15 +679,17 @@ function init() {
     const { values, result: r, at } = last;
     let box = document.getElementById("print-report");
     if (!box) { box = document.createElement("div"); box.id = "print-report"; document.body.appendChild(box); }
-    const inputs = inputRows(values);
-    box.innerHTML = `<div class="pr-head"><img src="/img/logo.svg" alt="ProcureBest" style="height:22px"><div class="pr-meta">${esc(t("report_subtitle"))} · ${esc(formatDate(at, lang, true))}</div></div>
+    let group = null, inputs = "";
+    for (const [g, label, val] of inputRows(values)) {
+      if (g && g !== group) { group = g; inputs += `<tr class="pr-group"><td colspan="2"><strong>${esc(g)}</strong></td></tr>`; }
+      inputs += `<tr><td>${esc(label)}</td><td class="num">${esc(typeof val === "number" ? formatNumber(val, lang, Number.isInteger(val) ? 0 : 2) : val)}</td></tr>`;
+    }
+    box.innerHTML = `<div class="pr-head"><img src="/img/logo.svg" alt="ProcureBest" style="height:26px"><div class="pr-meta">ProcureBest.com · ${esc(formatDate(at, lang, true))}</div></div>
       <h1 class="pr-title">${esc(L(def.title))}</h1>
       <div class="pr-result">${resultHtml(r, true)}</div>
       <h3 style="font-size:17px;margin:28px 0 10px">${esc(t("your_inputs"))}</h3>
-      <div class="table-wrap"><table><thead><tr><th>${esc(t("section"))}</th><th>${esc(t("input"))}</th><th class="num">${esc(t("value"))}</th></tr></thead>
-      <tbody>${inputs.map(([a, b, c]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td><td class="num">${esc(typeof c === "number" ? formatNumber(c, lang, Number.isInteger(c) ? 0 : 2) : c)}</td></tr>`).join("")}</tbody></table></div>
-      <h3 style="font-size:17px;margin:28px 0 10px">${esc(t("method_title"))}</h3><ol class="method-list">${def.method.map((m) => `<li>${esc(L(m))}</li>`).join("")}</ol>
-      ${def.disclaimer ? `<p class="small muted">${esc(L(def.disclaimer))}</p>` : ""}<p class="tiny muted">${esc(t("footer_disclaimer"))}</p>`;
+      <div class="table-wrap"><table><tbody>${inputs}</tbody></table></div>
+      <p class="tiny muted" style="margin-top:18px">${esc(t("footer_disclaimer"))}</p>`;
     document.body.classList.add("printing");
     const done = () => { document.body.classList.remove("printing"); window.removeEventListener("afterprint", done); };
     window.addEventListener("afterprint", done);

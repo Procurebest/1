@@ -267,42 +267,31 @@ const magWords = (c, v) => {
 };
 const withMag = (c, money, v) => html`${money}${magWords(c, v) ? html`<span class="mag-sub">${magWords(c, v)}</span>` : ""}`;
 
+// One simple worked example (TCO): a ৳10 lakh generator, few and round numbers.
 function exampleCard(c, def) {
   const ex = def.exampleInfo, v = def.example;
-  if (!ex || !v || !def.summarize || (v.alternatives || []).length < 2) return "";
+  if (!ex || !v || !def.summarize || !(v.alternatives || []).length) return "";
   const L = (o) => tr(o, c.lang);
-  const [a, b] = def.summarize(v), [oa, ob] = v.alternatives;
-  const cur = v.currency || "BDT", m = (x) => c.money(x, cur), lph = c.L("L/h", "লি/ঘণ্টা");
+  const [a] = def.summarize(v), o = v.alternatives[0];
+  const cur = v.currency || "BDT", m = (x) => c.money(x, cur), yrs = c.d(v.years);
+  const yearly = (Number(o.operating) || 0) + (Number(o.maintenance) || 0) + (Number(o.other_annual) || 0);
   const rows = [
-    [c.L("Purchase price", "ক্রয়মূল্য"), m(oa.purchase), m(ob.purchase)],
-    [c.L("Fuel use at 75% load", "৭৫% লোডে জ্বালানি"), `${c.num(ex.fuel[0], 1)} ${lph}`, `${c.num(ex.fuel[1], 1)} ${lph}`],
-    [c.L(`Fuel a year (${c.num(ex.hours)} h × ${m(ex.fuelPrice)}/L)`, `বছরে জ্বালানি (${c.num(ex.hours)} ঘণ্টা × লিটার ${m(ex.fuelPrice)})`), m(oa.operating), m(ob.operating)],
-    [c.L("Maintenance a year", "বছরে রক্ষণাবেক্ষণ"), m(oa.maintenance), m(ob.maintenance)],
-    [c.L(`Resale after ${v.years} years`, `${c.d(v.years)} বছর পর রিসেল`), m(oa.eol_value), m(ob.eol_value)],
+    [c.L("Purchase price", "ক্রয়মূল্য"), m(o.purchase)],
+    [c.L("Transport & installation", "পরিবহন ও স্থাপন"), m(o.transport_install)],
+    [c.L(`Running + maintenance: ${m(yearly)} × ${v.years} years`, `চলতি + রক্ষণাবেক্ষণ: ${m(yearly)} × ${yrs} বছর`), m(yearly * v.years)],
+    [c.L("Less: resale after 5 years", "বাদ: ৫ বছর পর রিসেল"), "− " + m(o.eol_value)],
   ];
-  const totals = [
-    ["total", c.L(`${v.years}-year TCO`, `${c.d(v.years)} বছরের TCO`), withMag(c, m(a.total), a.total), withMag(c, m(b.total), b.total)],
-    ["", c.L(`TCO, present value @ ${v.discount_rate}%`, `TCO, বর্তমান মূল্য @ ${c.d(v.discount_rate)}%`), withMag(c, m(a.totalPv), a.totalPv), withMag(c, m(b.totalPv), b.totalPv)],
-    ["hl", L(def.unitFor(v).per), m(a.perUnit), m(b.perUnit)],
-  ];
-  const [lo, loIn, hi, hiIn] = a.total <= b.total ? [a, oa, b, ob] : [b, ob, a, oa];
-  const buy = loIn.purchase - hiIn.purchase, own = hi.total - lo.total;
-  const verdict = buy > 0
-    ? c.L(`${loIn.name} costs ${m(buy)} more to buy but ${m(own)} less to own over ${v.years} years.`, `${loIn.name} কিনতে ${m(buy)} বেশি লাগে, কিন্তু ${c.d(v.years)} বছরে মোট খরচ ${m(own)} কম।`)
-    : c.L(`${loIn.name} is cheaper to buy and ${m(own)} cheaper to own over ${v.years} years.`, `${loIn.name} কিনতেও কম, আর ${c.d(v.years)} বছরে মোট খরচ ${m(own)} কম।`);
+  const share = Math.round((Number(o.purchase) / a.total) * 100);
   return html`<aside class="panel example-card" aria-labelledby="ex-title">
-    <span class="tag outline">${c.L("Worked example", "উদাহরণ")}</span>
+    <span class="tag outline">${c.L("Example", "উদাহরণ")}</span>
     <h3 id="ex-title">${L(ex.title)}</h3>
     <p class="small muted" style="margin:0">${L(ex.lead)}</p>
-    <div class="table-wrap ex-table"><table>
-      <thead><tr><th></th><th class="num">${oa.name}</th><th class="num">${ob.name}</th></tr></thead>
-      <tbody>${rows.map(([l, x, y]) => html`<tr><td>${l}</td><td class="num">${x}</td><td class="num">${y}</td></tr>`)}${totals.map(([cls, l, x, y]) => html`<tr class="${cls}"><td>${l}</td><td class="num">${x}</td><td class="num">${y}</td></tr>`)}</tbody>
-    </table></div>
-    <p class="ex-verdict">${verdict}</p>
-    <button class="btn btn-primary" type="button" data-calc-example data-scroll-to-form>${icon("sparkle", 16)} ${c.L("Load this example into the calculator", "উদাহরণটি ক্যালকুলেটরে বসান")}</button>
-    <p class="tiny muted ex-meta">${L(ex.collected)}</p>
-    <p class="tiny muted" style="margin:6px 0 0">${L(ex.assumptions)}</p>
-    <ul class="ex-sources tiny muted">${ex.sources.map(([l, u]) => html`<li>${u ? html`<a href="${u}" target="_blank" rel="noopener nofollow">${L(l)}</a>` : L(l)}</li>`)}</ul>
+    <div class="table-wrap ex-table"><table><tbody>
+      ${rows.map(([l, x]) => html`<tr><td>${l}</td><td class="num">${x}</td></tr>`)}
+      <tr class="total"><td>${c.L(`TCO for ${v.years} years`, `${yrs} বছরের TCO`)}</td><td class="num">${m(a.total)}</td></tr>
+    </tbody></table></div>
+    <p class="ex-verdict">${c.L(`It costs ${m(o.purchase)} to buy but ${m(a.total)} to own — the price is only ${share}% of the real cost.`, `কিনতে ${m(o.purchase)}, কিন্তু ${yrs} বছরে মোট খরচ ${m(a.total)} — দাম আসল খরচের মাত্র ${c.d(share)}%।`)}</p>
+    <button class="btn btn-primary" type="button" data-calc-example data-scroll-to-form>${icon("sparkle", 16)} ${c.L("Try this example", "উদাহরণটি চালিয়ে দেখুন")}</button>
   </aside>`;
 }
 
@@ -349,10 +338,10 @@ async function calcPage(c) {
     <h1 style="max-width:24ch">${L(def.title)}</h1>
     <p class="lead">${L(def.intro)}</p>
     <div class="row no-print" style="margin-top:6px">
-      <button class="btn btn-ghost btn-sm" type="button" data-calc-example form="calc-form">${icon("sparkle", 16)} ${c.t("calc.load_example")}</button>
-      <button class="btn btn-ghost btn-sm" type="button" data-calc-clear form="calc-form">${icon("x", 16)} ${c.L("Clear calculation", "হিসাব ক্লিয়ার করুন")}</button>
+      ${def.exampleInfo ? "" : html`<button class="btn btn-ghost btn-sm" type="button" data-calc-example form="calc-form">${icon("sparkle", 16)} ${c.t("calc.load_example")}</button>`}
+      <button class="btn btn-clear btn-sm" type="button" data-calc-clear form="calc-form">${icon("x", 16)} ${c.L("Clear calculation", "হিসাব ক্লিয়ার করুন")}</button>
     </div>
-    <div class="alert alert-info" data-example-note hidden style="margin-top:18px;max-width:760px">${icon("info", 18)}<div>${c.t("calc.example_loaded")} <button class="btn btn-secondary btn-sm" type="button" data-calc-clear style="margin:6px 0 0 4px">${icon("x", 14)} ${c.L("Clear calculation", "হিসাব ক্লিয়ার করুন")}</button></div></div>
+    <div class="alert alert-info" data-example-note hidden style="margin-top:18px;max-width:760px">${icon("info", 18)}<div>${c.t("calc.example_loaded")} <button class="btn btn-clear btn-sm" type="button" data-calc-clear style="margin:6px 0 0 4px">${icon("x", 14)} ${c.L("Clear calculation", "হিসাব ক্লিয়ার করুন")}</button></div></div>
   </div>
 </section>
 <section class="section-sm" style="padding-top:8px" data-calc data-slug="${def.slug}">
@@ -363,7 +352,7 @@ async function calcPage(c) {
       <div data-form><noscript><p class="muted">${c.L("Please enable JavaScript to use the calculator.", "ক্যালকুলেটর ব্যবহার করতে JavaScript চালু করুন।")}</p></noscript><p class="muted small">${c.t("common.loading")}</p></div>
       <div class="form-actions">
         <button class="btn btn-primary btn-lg" type="submit">${c.t("calc.calculate")}</button>
-        <button class="btn btn-secondary btn-lg" type="button" data-calc-clear>${icon("x", 18)} ${c.L("Clear calculation", "হিসাব ক্লিয়ার করুন")}</button>
+        <button class="btn btn-clear btn-lg" type="button" data-calc-clear>${icon("x", 18)} ${c.L("Clear calculation", "হিসাব ক্লিয়ার করুন")}</button>
         <label class="check small" style="margin-left:auto"><input type="checkbox" data-auto checked> ${c.t("calc.auto")}</label>
       </div>
     </form>
@@ -391,28 +380,60 @@ ${howtoSection(c, def)}
 }
 
 // ------------------------------------------------------------------ library
+// Standard library layout: type tabs, search, a compact grid and page numbers (12 a page),
+// so the list never runs far down the page. Tabs are normal links, so they work on every phone.
+const LIB_GROUPS = ["book", "docs", "excel"];
+const libGroup = (type) => (type === "book" ? "book" : type === "excel" ? "excel" : "docs");
+const LIB_PER_PAGE = 12;
+
+function libCard(c, it) {
+  return html`<a class="lib-card" href="${c.p("/library/" + it.slug)}">
+    <span class="lib-thumb">${it.cover_id ? html`<img src="/media/${it.cover_id}" alt="" loading="lazy">` : icon(TYPE_ICON[it.type] || "file", 22)}</span>
+    <span class="lib-body">
+      <span class="lib-tags"><span class="tag outline">${c.t("lib.one." + it.type)}</span>${priceTag(c, it.price)}</span>
+      <strong class="lib-title">${itemTitle(c, it)}</strong>
+      <span class="lib-sum">${plain(c.pick(it.summary_en, it.summary_bn), 110)}</span>
+    </span>
+  </a>`;
+}
+
 async function library(c) {
-  const items = await all(c.env, "SELECT * FROM items WHERE status='published' ORDER BY created_at DESC, id DESC");
-  const popular = items.filter((i) => i.downloads > 0).sort((a, b) => b.downloads - a.downloads || b.id - a.id).slice(0, 4);
-  // Three columns, newest first: books (left), doc files / CV / other templates (middle), Excel templates (right).
-  const cols = [
-    ["books", c.t("lib.type.book"), items.filter((i) => i.type === "book")],
-    ["docs", c.L("Doc files, CV & other templates", "ডক ফাইল, CV ও অন্যান্য টেমপ্লেট"), items.filter((i) => i.type !== "book" && i.type !== "excel")],
-    ["excel", c.t("lib.type.excel"), items.filter((i) => i.type === "excel")],
-  ];
+  const items = await all(c.env, "SELECT * FROM items WHERE status='published' ORDER BY sort, created_at DESC, id DESC");
+  const sp = c.url.searchParams;
+  const rawType = sp.get("type") || "";
+  const group = LIB_GROUPS.includes(rawType) ? rawType : rawType ? libGroup(rawType) : "";
+  const q = String(sp.get("q") || "").trim().slice(0, 80);
+  const norm = (t) => String(t || "").toLowerCase().normalize("NFC");
+  const words = norm(q).split(/\s+/).filter(Boolean);
+  const inGroup = (g) => items.filter((i) => libGroup(i.type) === g);
+  let list = group ? inGroup(group) : items;
+  if (words.length) list = list.filter((i) => { const hay = norm([i.title_en, i.title_bn, i.summary_en, i.summary_bn].join(" ")); return words.every((w) => hay.includes(w)); });
+  const pages = Math.max(1, Math.ceil(list.length / LIB_PER_PAGE));
+  const page = Math.min(pages, Math.max(1, parseInt(sp.get("page"), 10) || 1));
+  const shown = list.slice((page - 1) * LIB_PER_PAGE, page * LIB_PER_PAGE);
+  const popular = !group && !q && page === 1 ? items.filter((i) => i.downloads > 0).sort((a, b) => b.downloads - a.downloads || b.id - a.id).slice(0, 3) : [];
+  const url = (g, p = 1) => c.p("/library") + (() => { const u = new URLSearchParams(); if (g) u.set("type", g); if (q) u.set("q", q); if (p > 1) u.set("page", p); const x = u.toString(); return x ? "?" + x : ""; })();
+  const tabs = [["", c.L("All", "সব"), items.length], ["book", c.t("lib.type.book"), inGroup("book").length],
+    ["docs", c.L("Docs, CV & templates", "ডক, CV ও টেমপ্লেট"), inGroup("docs").length], ["excel", c.t("lib.type.excel"), inGroup("excel").length]];
+  const pager = pages > 1 ? html`<nav class="lib-pager" aria-label="${c.L("Pages", "পাতা")}">
+      ${page > 1 ? html`<a class="btn btn-ghost btn-sm" href="${url(group, page - 1)}" rel="prev">${icon("arrow-left", 15)} ${c.L("Previous", "আগের")}</a>` : ""}
+      ${Array.from({ length: pages }, (_, k) => k + 1).map((n) => n === page ? html`<span class="lib-page on" aria-current="page">${c.d(n)}</span>` : html`<a class="lib-page" href="${url(group, n)}">${c.d(n)}</a>`)}
+      ${page < pages ? html`<a class="btn btn-ghost btn-sm" href="${url(group, page + 1)}" rel="next">${c.L("Next", "পরের")} ${icon("arrow-right", 15)}</a>` : ""}
+    </nav>` : "";
   const body = html`${pageHead(c, { title: c.t("lib.title"), lead: c.t("lib.lead") })}
 <section class="section-sm" style="padding-top:0">
-  <div class="wrap" data-directory>
-    <div class="toolbar">
-      <div class="search">${icon("search", 18)}<input type="search" placeholder="${c.t("lib.search")}" aria-label="${c.t("lib.search")}" data-dir-search></div>
+  <div class="wrap">
+    <div class="lib-bar">
+      <nav class="lib-tabs" aria-label="${c.t("nav.library")}">${tabs.map(([g, label, n]) => html`<a class="chip ${g === group ? "on" : ""}" href="${url(g)}" ${g === group ? raw('aria-current="page"') : ""}>${label} <span class="lib-n">${c.d(n)}</span></a>`)}</nav>
+      <form class="search lib-search" method="get" action="${c.p("/library")}" role="search">${icon("search", 18)}
+        ${group ? html`<input type="hidden" name="type" value="${group}">` : ""}
+        <input type="search" name="q" value="${q}" placeholder="${c.t("lib.search")}" aria-label="${c.t("lib.search")}"></form>
     </div>
-    ${popular.length ? html`<div class="lib-pop"><h2 class="hub-h" style="margin-top:0">${c.L("Popular — most downloaded", "জনপ্রিয় — সবচেয়ে বেশি ডাউনলোড")}</h2>
-      <div class="grid grid-4">${popular.map((it) => itemCard(c, it))}</div></div>` : ""}
-    ${items.length ? html`<div class="lib-cols">${cols.map(([key, title, list]) => html`<div class="lib-col" id="${key}">
-        <h2>${title} <span class="muted">${c.d(list.length)}</span></h2>
-        ${list.length ? html`<div class="stack">${list.map((it) => itemCard(c, it))}</div>` : html`<p class="lib-col-empty">${c.L("Coming soon.", "শীঘ্রই আসছে।")}</p>`}
-      </div>`)}</div>
-      <p class="empty" data-dir-empty hidden>${c.t("dir.no_results")}</p>` : html`<p class="empty">${c.t("lib.none")}</p>`}
+    ${popular.length ? html`<div class="lib-pop"><h2 class="lib-h">${c.L("Popular — most downloaded", "জনপ্রিয় — সবচেয়ে বেশি ডাউনলোড")}</h2>
+      <div class="lib-grid">${popular.map((it) => libCard(c, it))}</div></div>` : ""}
+    ${popular.length ? html`<h2 class="lib-h">${c.L("All files", "সব ফাইল")}</h2>` : ""}
+    ${shown.length ? html`<div class="lib-grid">${shown.map((it) => libCard(c, it))}</div>${pager}`
+      : html`<p class="empty">${q ? html`${c.t("dir.no_results")} (“${q}”) <br><a class="btn btn-ghost btn-sm" style="margin-top:14px" href="${url(group)}">${c.L("Clear search", "খোঁজা মুছুন")}</a>` : items.length ? c.L("Coming soon.", "শীঘ্রই আসছে।") : c.t("lib.none")}</p>`}
   </div>
 </section>`;
   return c.html(await layout(c, { title: c.t("lib.title"), description: c.t("lib.meta"), body }));
@@ -765,7 +786,8 @@ async function sitemap(c) {
   const paths = ["/", "/calculators", ...calcList(await c.settings()).map((k) => "/calculators/" + k.slug), "/exams", "/library", "/courses", "/blog", "/negotiation-guru", "/procurement-ai", "/glossary", "/career",
     "/certificates/verify", "/about", "/contact", "/help", "/privacy", "/terms", "/certificate-policy", "/disclaimer",
     ...posts.map((p) => `/${SECTION_PATH[p.section] || p.section}/${p.slug}`), ...items.map((i) => "/library/" + i.slug), ...courses.map((k) => "/courses/" + k.slug)];
-  const urls = paths.flatMap((p) => ["en", "bn"].map((l) => `<url><loc>${c.siteUrl}/${l}${p === "/" ? "/" : p}</loc><xhtml:link rel="alternate" hreflang="en" href="${c.siteUrl}/en${p === "/" ? "/" : p}"/><xhtml:link rel="alternate" hreflang="bn" href="${c.siteUrl}/bn${p === "/" ? "/" : p}"/></url>`));
+  const enOnly = (p) => /^\/(exams|certificates|results)(\/|$)/.test(p);
+  const urls = paths.flatMap((p) => enOnly(p) ? [`<url><loc>${c.siteUrl}/en${p}</loc></url>`] : ["en", "bn"].map((l) => `<url><loc>${c.siteUrl}/${l}${p === "/" ? "/" : p}</loc><xhtml:link rel="alternate" hreflang="en" href="${c.siteUrl}/en${p === "/" ? "/" : p}"/><xhtml:link rel="alternate" hreflang="bn" href="${c.siteUrl}/bn${p === "/" ? "/" : p}"/></url>`));
   return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${urls.join("")}</urlset>`,
     { headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
 }

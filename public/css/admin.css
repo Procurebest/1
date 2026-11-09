@@ -52,3 +52,4 @@ a.metric:hover { border-color: #000; }
 .img-check.ok { color: var(--ok); }
 .md-image .img-check { display: block; margin-top: 4px; }
 .share-checks { display: flex; flex-wrap: wrap; gap: 10px 24px; }
+.img-preview { display: block; max-width: 220px; max-height: 160px; margin-top: 10px; border-radius: 8px; border: 1px solid #e8e8ed; background: #efeff1; }

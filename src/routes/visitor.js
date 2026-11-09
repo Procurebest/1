@@ -52,7 +52,7 @@ async function examsIndex(c) {
       <div class="actions">${actions}</div>${extra}
     </div>`);
   }
-  const body = html`${pageHead(c, { title: c.t("exam.title"), lead: c.t("exam.lead"), extra: html`<div class="alert alert-info" style="max-width:760px">${icon("info", 18)}<div>${c.t("exam.demo_bank_note")}</div></div>${c.lang === "bn" ? html`<div class="alert alert-info" style="max-width:760px;margin-top:12px">${icon("info", 18)}<div>পরীক্ষা ও সার্টিফিকেট শুধু ইংরেজিতে। পরীক্ষা শুরু করলে প্রশ্ন ইংরেজিতে আসবে, সার্টিফিকেটও ইংরেজিতে দেওয়া হবে।</div></div>` : ""}` })}
+  const body = html`${pageHead(c, { title: c.t("exam.title"), lead: c.t("exam.lead"), extra: html`<div class="alert alert-info" style="max-width:760px">${icon("info", 18)}<div>${c.t("exam.demo_bank_note")}</div></div>` })}
 <section class="section-sm" style="padding-top:0"><div class="wrap grid ${cards.length === 4 ? "grid-2" : "grid-3"}">${cards}</div></section>
 <section class="section-sm">
   <div class="wrap grid grid-2">
@@ -88,7 +88,6 @@ async function examStart(c) {
       <p>${c.t("exam.attempts_info", { n: c.d(lv.attempts_per_purchase) })}</p>
       <a class="btn btn-primary btn-lg" href="${c.p("/buy/exam/" + lv.code)}">${icon("cart", 18)} ${c.t("exam.buy", { price: c.money(lv.price) })}</a>`;
   else panel = html`
-      ${c.lang === "bn" ? html`<div class="alert alert-info" style="margin-bottom:16px">${icon("info", 18)}<div>এই পরীক্ষা শুধু ইংরেজিতে হবে; সার্টিফিকেটও ইংরেজিতে দেওয়া হবে।</div></div>` : ""}
       <form action="/api/exams/${lv.code}/start" data-json-form data-needs-email novalidate>
         <div class="field full"><label for="ex-name">${c.t("exam.name_label")}</label>
           <input id="ex-name" name="name" required minlength="3" maxlength="80" autocomplete="name" value="${prevName}">
@@ -517,15 +516,15 @@ async function accessLink(c) {
 
 // Exams are taken in English and certificates are issued in English only:
 // the Bengali address of these pages opens the same page in English.
-const englishOnly = (fn) => (c) => (c.url.pathname.startsWith("/bn/") ? c.redirect(c.url.pathname.replace(/^\/bn\//, "/en/") + c.url.search, 302) : fn(c));
+const englishOnly = (fn) => (c) => (c.url.pathname.startsWith("/bn/") ? c.redirect(c.url.pathname.replace(/^\/bn\//, "/en/") + c.url.search, 301) : fn(c));
 
 export function registerVisitor(r) {
   const L = "/:lang(en|bn)";
-  r.get(`${L}/exams`, examsIndex);
+  r.get(`${L}/exams`, englishOnly(examsIndex));
   r.get(`${L}/exams/attempt/:id`, englishOnly(attemptPage));
   r.get(`${L}/exams/result/:id`, englishOnly(resultPage));
   r.get(`${L}/results/:id`, englishOnly(publicResult));
-  r.get(`${L}/exams/:code(beginner|experienced|expert|[a-z0-9-]+)`, examStart);
+  r.get(`${L}/exams/:code(beginner|experienced|expert|[a-z0-9-]+)`, englishOnly(examStart));
   r.get(`${L}/certificates/verify`, englishOnly(certVerify));
   r.get(`${L}/certificates/:code/print`, englishOnly(certPrint));
   r.get(`${L}/certificates/:code`, englishOnly(certVerify));

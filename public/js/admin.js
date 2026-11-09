@@ -45,6 +45,55 @@
     img.src = url;
   }
 
+  // ---------------------------------------------------------------- automatic picture fitting
+  // Any photo (even a large phone photo, a PNG or a different shape) is resized and cropped in the
+  // browser to the exact frame before upload, saved as a light JPG. No more "wrong shape" or "too large".
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("decode")); };
+      img.src = url;
+    });
+  }
+  const toBlob = (cv, q) => new Promise((res) => cv.toBlob(res, "image/jpeg", q));
+  async function fitImage(box, file) {
+    const w0 = +box.dataset.imgW || 0, h0 = +box.dataset.imgH || 0, kb = +box.dataset.imgKb || 300, fit = box.dataset.imgFit || "cover";
+    if (!w0 || !/^image\//.test(file.type || "") || /svg|gif/.test(file.type)) return { file, note: "" };
+    let img;
+    try { img = await loadImage(file); } catch (e) { return { file, note: "" }; }
+    const W = img.naturalWidth, H = img.naturalHeight;
+    let cw, ch, sx = 0, sy = 0, sw = W, sh = H, dx = 0, dy = 0, dw, dh;
+    if (!h0 || fit === "width") { cw = Math.min(w0, W); ch = Math.round(H * cw / W); dw = cw; dh = ch; }
+    else if (fit === "contain") {
+      cw = w0; ch = h0; const k = Math.min(cw / W, ch / H); dw = Math.round(W * k); dh = Math.round(H * k); dx = Math.round((cw - dw) / 2); dy = Math.round((ch - dh) / 2);
+    } else {
+      cw = w0; ch = h0; dw = cw; dh = ch; const r = cw / ch;
+      if (W / H > r) { sw = Math.round(H * r); sx = Math.round((W - sw) / 2); } else { sh = Math.round(W / r); sy = Math.round((H - sh) / 2); }
+    }
+    const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, cw, ch);
+    g.imageSmoothingQuality = "high";
+    g.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+    let blob = null;
+    for (const q of [0.88, 0.8, 0.72, 0.64, 0.56]) { blob = await toBlob(cv, q); if (blob && blob.size <= kb * 1024 * 1.2) break; }
+    if (!blob) return { file, note: "" };
+    const name = (file.name || "image").replace(/\.[^.]+$/, "").replace(/[^\w\-]+/g, "-").slice(0, 60) + ".jpg";
+    const out = new File([blob], name, { type: "image/jpeg" });
+    let pv = box.querySelector(".img-preview");
+    if (!pv) { pv = document.createElement("img"); pv.className = "img-preview"; pv.alt = ""; (box.querySelector(".upload-box") || box).appendChild(pv); }
+    pv.src = URL.createObjectURL(out);
+    return { file: out, note: T(`✓ Fitted automatically: ${cw} × ${ch} px, ${Math.round(out.size / 1024)} KB.`, `✓ নিজে থেকেই মাপে বসানো হয়েছে: ${cw} × ${ch} পিক্সেল, ${Math.round(out.size / 1024)} KB।`) };
+  }
+  function showNote(box, note) {
+    const out = box.querySelector("[data-img-check]");
+    if (!out || !note) return;
+    out.hidden = false; out.classList.add("ok"); out.textContent = note;
+  }
+  // Any picture format the browser can open is accepted (it is converted to JPG).
+  document.querySelectorAll("[data-upload][data-img-w] [data-upload-input], [data-md-image] input[type=file]").forEach((i) => { i.accept = "image/*"; });
+
   // ---------------------------------------------------------------- uploads
   document.querySelectorAll("[data-upload]").forEach((box) => {
     const input = box.querySelector("[data-upload-input]");
@@ -54,9 +103,11 @@
     const bar = box.querySelector("[data-upload-progress]");
     const form = box.closest("form");
     input.addEventListener("change", async () => {
-      const file = input.files && input.files[0];
+      let file = input.files && input.files[0];
       if (!file) return;
-      imageAdvice(box, file);
+      const fitted = await fitImage(box, file);
+      file = fitted.file;
+      if (fitted.note) showNote(box, fitted.note); else imageAdvice(box, file);
       const submit = form && form.querySelector('button[type="submit"]');
       if (submit) submit.disabled = true;
       bar.hidden = false;
@@ -100,7 +151,8 @@
     if (!init.ok) throw new Error(init.error || "init failed");
     for (let i = 0; i < init.chunks; i++) {
       const part = file.slice(i * init.chunkSize, Math.min(file.size, (i + 1) * init.chunkSize));
-      const r = await api(`/admin/api/files/${init.id}/chunk/${i}`, { method: "PUT", headers: { "Content-Type": "application/octet-stream" }, body: part });
+      let r = { ok: false };
+      for (let a = 0; a < 3 && !r.ok; a++) r = await api(`/admin/api/files/${init.id}/chunk/${i}`, { method: "PUT", headers: { "Content-Type": "application/octet-stream" }, body: part });
       if (!r.ok) throw new Error(r.error || "upload failed");
       if (onProgress) onProgress((i + 1) / init.chunks);
     }
@@ -113,9 +165,11 @@
     const status = box.querySelector("[data-md-image-status]");
     const area = document.getElementById(box.dataset.target);
     input.addEventListener("change", async () => {
-      const file = input.files && input.files[0];
+      let file = input.files && input.files[0];
       if (!file || !area) return;
-      imageAdvice(box, file);
+      const fitted = await fitImage(box, file);
+      file = fitted.file;
+      if (fitted.note) showNote(box, fitted.note); else imageAdvice(box, file);
       status.textContent = T("Uploading…", "আপলোড হচ্ছে…");
       try {
         const done = await uploadFile(file, "cover", (p) => { status.textContent = T("Uploading… ", "আপলোড হচ্ছে… ") + Math.round(p * 100) + "%"; });
@@ -129,6 +183,61 @@
       } catch (err) {
         status.textContent = T("Upload failed: ", "আপলোড ব্যর্থ: ") + err.message;
       } finally { input.value = ""; }
+    });
+  });
+
+  // ---------------------------------------------------------------- question CSV import (in small batches)
+  // The file is read here in the browser and sent 100 rows at a time, so big files never hit
+  // the free plan's time limit. Excel files saved as ANSI or with ";" separators also work.
+  function parseCsvText(text, delim) {
+    text = String(text || "").replace(/^\uFEFF/, "");
+    const rows = []; let row = [], field = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; } else field += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === delim) { row.push(field); field = ""; }
+      else if (ch === "\n" || ch === "\r") { if (ch === "\r" && text[i + 1] === "\n") i++; row.push(field); field = ""; if (row.some((v) => v.trim() !== "")) rows.push(row); row = []; }
+      else field += ch;
+    }
+    row.push(field); if (row.some((v) => v.trim() !== "")) rows.push(row);
+    return rows;
+  }
+  document.querySelectorAll("[data-q-import-form]").forEach((form) => {
+    const box = form.closest("[data-q-import]");
+    const status = box.querySelector("[data-q-status]"), list = box.querySelector("[data-q-errors]"), bar = box.querySelector("[data-q-progress]");
+    form.addEventListener("submit", async (e) => {
+      const file = form.querySelector('input[type="file"]').files[0];
+      if (!file || !window.TextDecoder) return; // falls back to the normal form upload
+      e.preventDefault();
+      const btn = form.querySelector("button"); btn.disabled = true; list.innerHTML = "";
+      try {
+        const buf = await file.arrayBuffer();
+        let text;
+        try { text = new TextDecoder("utf-8", { fatal: true }).decode(buf); } catch (err) { text = new TextDecoder("windows-1252").decode(buf); }
+        const first = text.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] || "";
+        const n = (ch) => first.split(ch).length;
+        const delim = n(";") > n(",") && n(";") > n("\t") ? ";" : n("\t") > n(",") ? "\t" : ",";
+        const rows = parseCsvText(text, delim);
+        const head = (rows.shift() || []).map((h) => h.trim());
+        if (!head.length || !rows.length) throw new Error(T("The file has no question rows.", "ফাইলে কোনো প্রশ্নের সারি নেই।"));
+        const objs = rows.slice(0, 5000).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] || ""])));
+        let added = 0, updated = 0; const errors = [];
+        if (rows.length > 5000) errors.push({ line: 5002, msg: T("Only the first 5,000 rows were imported.", "শুধু প্রথম ৫,০০০ সারি ইমপোর্ট হয়েছে।") });
+        bar.hidden = false;
+        for (let i = 0; i < objs.length; i += 100) {
+          status.textContent = T(`Importing… ${Math.min(i + 100, objs.length)} of ${objs.length}`, `ইমপোর্ট হচ্ছে… ${objs.length}টির মধ্যে ${Math.min(i + 100, objs.length)}টি`);
+          let r = { ok: false };
+          for (let a = 0; a < 3 && !r.ok; a++) r = await api("/admin/api/questions/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows: objs.slice(i, i + 100), first_line: i + 2 }) });
+          if (!r.ok) throw new Error((r.error || "failed") + T(` (rows ${i + 2}–${i + 101}; earlier rows are already saved)`, ` (সারি ${i + 2}–${i + 101}; আগের সারিগুলো সেভ হয়ে গেছে)`));
+          added += r.added; updated += r.updated; errors.push(...r.errors);
+          bar.firstElementChild.style.width = Math.round(Math.min(1, (i + 100) / objs.length) * 100) + "%";
+        }
+        status.textContent = T(`Done. Added ${added}, updated ${updated}, skipped ${errors.length}.`, `শেষ। যোগ হয়েছে ${added}, আপডেট ${updated}, বাদ ${errors.length}।`);
+        errors.slice(0, 100).forEach((er) => { const li = document.createElement("li"); li.textContent = T("Line ", "লাইন ") + er.line + ": " + er.msg; list.appendChild(li); });
+      } catch (err) {
+        status.textContent = T("Import stopped: ", "ইমপোর্ট থেমে গেছে: ") + err.message;
+      } finally { btn.disabled = false; }
     });
   });
 

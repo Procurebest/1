@@ -57,7 +57,9 @@ export class Ctx {
   }
   get siteUrl() { return (this.env.SITE_URL || this.url.origin).replace(/\/$/, ""); }
   get secure() { return this.url.protocol === "https:"; }
-  p(path = "/", lang = this.lang) { return `/${lang}${path === "/" ? "/" : path}`; }
+  p(path = "/", lang = this.lang) {
+    if (/^\/(exams|certificates|results)(\/|$|\?)/.test(path)) lang = "en"; // English only
+    return `/${lang}${path === "/" ? "/" : path}`; }
   async settings() { if (!this._s) this._s = await loadSettings(this.env); return this._s; }
   async secret() { if (!this._secret) this._secret = await getSecret(this.env); return this._secret; }
 

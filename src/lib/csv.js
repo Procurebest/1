@@ -1,5 +1,5 @@
 // Small RFC 4180 CSV reader/writer (UTF-8, comma separated, quoted fields).
-export function parseCsv(text) {
+export function parseCsv(text, delim = ",") {
   text = String(text || "").replace(/^﻿/, "");
   const rows = [];
   let row = [], field = "", inQuotes = false;
@@ -10,7 +10,7 @@ export function parseCsv(text) {
         if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
       } else field += ch;
     } else if (ch === '"') inQuotes = true;
-    else if (ch === ",") { row.push(field); field = ""; }
+    else if (ch === delim) { row.push(field); field = ""; }
     else if (ch === "\n" || ch === "\r") {
       if (ch === "\r" && text[i + 1] === "\n") i++;
       row.push(field); field = "";

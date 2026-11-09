@@ -6,7 +6,7 @@ import { calcList } from "../lib/calclist.js";
 import { tr } from "../../public/js/calc/defs.js";
 import { all } from "../lib/db.js";
 
-export const ASSET_V = "9";
+export const ASSET_V = "10";
 const asset = (p) => `${p}?v=${ASSET_V}`;
 export const LIB_TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
 
@@ -19,7 +19,7 @@ async function navItems(c, s) {
     { href: "/calculators", label: c.t("nav.calculators"), sub: [...calcs.map((k) => [`/calculators/${k.slug}`, tr(k.title, c.lang)]), ["/calculators", c.t("nav.all_calculators")]] },
     { href: "/exams", label: c.t("nav.exams"), free: s.nav_free_badge !== "0" && exams.some((e) => !e.price),
       sub: [...exams.map((e) => [`/exams/${e.code}`, c.pick(e.title_en, e.title_bn), e.price ? "" : c.t("nav.free")]), ["/certificates/verify", c.t("footer.verify_cert")]] },
-    { href: "/library", label: c.t("nav.library"), sub: [...LIB_TYPES.map((t) => [`/library#${t === "book" ? "books" : t === "excel" ? "excel" : "docs"}`, c.t("lib.type." + t)]), ["/library", c.t("nav.all_library")]] },
+    { href: "/library", label: c.t("nav.library"), sub: [["/library?type=book", c.t("lib.type.book")], ["/library?type=docs", c.L("Docs, CV & templates", "ডক, CV ও টেমপ্লেট")], ["/library?type=excel", c.t("lib.type.excel")], ["/library", c.t("nav.all_library")]] },
     { href: "/courses", label: c.t("nav.courses"), sub: [["/courses?kind=live", c.t("courses.live")], ["/courses?kind=recorded", c.t("courses.recorded")]] },
     { href: "/negotiation-guru", label: c.t("nav.negotiation"), sub: [["/negotiation-guru#books", c.t("nav.books")], ["/negotiation-guru#articles", c.t("nav.articles")]] },
     { href: "/procurement-ai", label: c.t("nav.ai"), sub: [["/procurement-ai#books", c.t("nav.books")], ["/procurement-ai#articles", c.t("nav.articles")]] },
@@ -29,6 +29,7 @@ async function navItems(c, s) {
 }
 
 function langSwitchUrl(c, lang) {
+  if (lang === "bn" && /^\/(en|bn)\/(exams|certificates|results)(\/|$)/.test(c.url.pathname)) return "/bn/";
   const parts = c.url.pathname.split("/");
   if (parts[1] === "en" || parts[1] === "bn") parts[1] = lang;
   else return `/${lang}/`;
@@ -42,6 +43,7 @@ export async function layout(c, { title, description, body, pageType = "page", n
   const pageTitle = title ? `${title} — ProcureBest` : (lang === "bn" ? "ProcureBest — প্রকিউরমেন্ট ক্যালকুলেটর, পরীক্ষা ও লাইব্রেরি" : "ProcureBest — Procurement calculators, exams and library");
   const desc = description || s["seo_description_" + lang];
   const here = c.url.pathname;
+  const enOnly = /^\/en\/(exams|certificates|results)(\/|$)/.test(c.url.pathname);
   const enUrl = c.siteUrl + langSwitchUrl(c, "en").split("?")[0];
   const bnUrl = c.siteUrl + langSwitchUrl(c, "bn").split("?")[0];
   const nav = await navItems(c, s);
@@ -60,7 +62,8 @@ export async function layout(c, { title, description, body, pageType = "page", n
   <title>${pageTitle}</title>
   <meta name="description" content="${desc}">
   ${noindex ? raw('<meta name="robots" content="noindex, nofollow">') : ""}
-  ${alternates && !noindex ? html`<link rel="canonical" href="${lang === "bn" ? bnUrl : enUrl}">
+  ${enOnly && !noindex ? html`<link rel="canonical" href="${enUrl}">` : ""}
+  ${alternates && !noindex && !enOnly ? html`<link rel="canonical" href="${lang === "bn" ? bnUrl : enUrl}">
   <link rel="alternate" hreflang="en" href="${enUrl}">
   <link rel="alternate" hreflang="bn" href="${bnUrl}">
   <link rel="alternate" hreflang="x-default" href="${enUrl}">` : ""}

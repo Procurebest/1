@@ -111,8 +111,8 @@ export async function publicQuestions(env, att, lang) {
     const order = orders[qid] || opts.map((_, i) => i);
     const chosen = answers[qid] !== undefined ? order.indexOf(answers[qid]) : -1;
     return {
-      id: qid, n: n + 1, text: lang === "bn" ? q.text_bn || q.text_en : q.text_en || q.text_bn,
-      options: order.map((i) => (lang === "bn" ? opts[i].bn || opts[i].en : opts[i].en || opts[i].bn)),
+      id: qid, n: n + 1, text: q.text_en || q.text_bn,
+      options: order.map((i) => opts[i].en || opts[i].bn),
       chosen: chosen >= 0 ? chosen : null,
     };
   }).filter(Boolean);
