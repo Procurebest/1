@@ -238,3 +238,21 @@ html[lang="bn"] .lib-card .lib-sum::after { content: "প্রিভিউ দ�
 /* Phones and tablets have no mouse: keep the cover clean there. */
 @media (hover: none) { .lib-card .lib-sum { display: none; } }
 @media (max-width: 640px) { .lib-card .lib-sum { top: 8px; left: 8px; width: calc(100% - 16px); } }
+
+/* ===================================================================== v10.3 — file type is clear at a glance */
+/* A coloured label on the cover corner + a coloured line under the card:
+   Book = blue, Excel = green, PDF = red, Word/Doc = sky blue, CV = orange, other = grey. */
+.lib-card { --type: #64748b; --type-bg: #f1f5f9; border-bottom: 4px solid var(--type); }
+.lib-card[data-type="book"] { --type: #1d4ed8; --type-bg: #e8eefc; }
+.lib-card[data-type="excel"] { --type: #15803d; --type-bg: #e7f6ec; }
+.lib-card[data-type="pdf"] { --type: #dc2626; --type-bg: #fdecec; }
+.lib-card[data-type="doc"] { --type: #0284c7; --type-bg: #e6f4fb; }
+.lib-card[data-type="cv"] { --type: #ea580c; --type-bg: #fdf0e7; }
+.lib-thumb { position: relative; }
+.lib-card .lib-thumb > svg { color: var(--type); }
+.lib-card:not(:has(img)) .lib-thumb { background: var(--type-bg); }
+.lib-badge { position: absolute; top: 8px; left: 8px; z-index: 2; display: inline-flex; align-items: center; gap: 5px;
+  background: var(--type); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); }
+.lib-badge svg { width: 14px; height: 14px; }
+.lib-tags .tag.outline { display: none; }
+@media (max-width: 640px) { .lib-badge { top: 6px; left: 6px; font-size: 11px; padding: 3px 8px; } }
