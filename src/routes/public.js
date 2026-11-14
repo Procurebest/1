@@ -12,6 +12,7 @@ import { whatsapp } from "../lib/settings.js";
 import { CALCULATORS, BY_SLUG, tr } from "../../public/js/calc/defs.js";
 import { HttpError } from "../app.js";
 import { infoPage } from "../views/info.js";
+import { skateHome } from "../views/skate.js";
 import { CAREER_SITEMAP } from "./career.js";
 
 const TYPES = LIB_TYPES;
@@ -102,6 +103,7 @@ async function home(c) {
       <a class="btn btn-secondary btn-lg" href="${c.p("/career")}">${c.L("Career Goal", "ক্যারিয়ার গোল")}</a>
     </div>
     ${heroArt(c)}
+    ${skateHome(c, s)}
   </div>
 </section>
 
