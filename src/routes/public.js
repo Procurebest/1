@@ -12,18 +12,23 @@ import { whatsapp } from "../lib/settings.js";
 import { CALCULATORS, BY_SLUG, tr } from "../../public/js/calc/defs.js";
 import { HttpError } from "../app.js";
 import { infoPage } from "../views/info.js";
+import { skateHome } from "../views/skate.js";
+import { CAREER_SITEMAP } from "./career.js";
 
 const TYPES = LIB_TYPES;
 const TYPE_ICON = { book: "book-open", excel: "sheet", cv: "cv", doc: "doc", pdf: "pdf", other: "file" };
 // Article sections and their web addresses.
-export const SECTION_PATH = { blog: "blog", career: "career", negotiation: "negotiation-guru", ai: "procurement-ai" };
+export const SECTION_PATH = { blog: "blog", career: "career/blog", negotiation: "negotiation-guru", ai: "procurement-ai" };
 const secT = (c, section, part) => (section === "blog" || section === "career" ? c.t(`${section}.${part}`) : c.t(`section.${section}.${part === "meta" ? "lead" : part}`));
 const secNav = (c, section) => ({ blog: c.t("nav.blog"), career: c.t("nav.career"), negotiation: c.t("nav.negotiation"), ai: c.t("nav.ai") }[section]);
 const POST_CATS = {
   fundamentals: ["Fundamentals", "মৌলিক বিষয়"], tco: ["Total cost of ownership", "মোট মালিকানা খরচ"], "supplier-evaluation": ["Supplier evaluation", "সাপ্লায়ার মূল্যায়ন"],
   incoterms: ["Incoterms", "ইনকোটার্মস"], "bangladesh-import": ["Bangladesh import", "বাংলাদেশে আমদানি"], "china-sourcing": ["China sourcing", "চীন সোর্সিং"],
   inventory: ["Inventory", "ইনভেন্টরি"], kpi: ["KPIs", "কেপিআই"], negotiation: ["Negotiation", "দর-কষাকষি"], "import-documentation": ["Import documents", "আমদানি ডকুমেন্ট"],
-  interview: ["Interviews", "ইন্টারভিউ"], cv: ["CV & job search", "সিভি ও চাকরি খোঁজা"], skills: ["Skills", "দক্ষতা"], growth: ["Career growth", "ক্যারিয়ার উন্নতি"],
+  interview: ["Interview Preparation", "ইন্টারভিউ প্রস্তুতি"], cv: ["CV & job search", "সিভি ও চাকরি খোঁজা"], skills: ["Procurement Skills", "প্রকিউরমেন্ট দক্ষতা"], growth: ["Career Development", "ক্যারিয়ার উন্নয়ন"],
+  "career-guide": ["Procurement Career Guide", "প্রকিউরমেন্ট ক্যারিয়ার গাইড"], "career-development": ["Career Development", "ক্যারিয়ার উন্নয়ন"], "job-market": ["Job Market Insights", "চাকরির বাজার"],
+  leadership: ["Leadership & Management", "লিডারশিপ ও ম্যানেজমেন্ট"], "professional-development": ["Professional Development", "পেশাগত উন্নয়ন"], "success-stories": ["Career Success Stories", "ক্যারিয়ার সাফল্যের গল্প"],
+  preparation: ["Preparation", "প্রস্তুতি"], tactics: ["Tactics", "কৌশল"], scripts: ["Scripts", "স্ক্রিপ্ট"], "case-study": ["Case studies", "কেস স্টাডি"],
 };
 export const catLabel = (c, code) => (POST_CATS[code] ? c.pick(...POST_CATS[code]) : code);
 const fileSize = (c, bytes) => (!bytes ? "—" : bytes < 1024 * 1024 ? `${c.num(bytes / 1024, 0)} KB` : `${c.num(bytes / 1024 / 1024, 1)} MB`);
@@ -78,7 +83,7 @@ async function home(c) {
   const s = await c.settings();
   const [items, posts, levels, reviews] = await Promise.all([
     all(c.env, "SELECT * FROM items WHERE status='published' ORDER BY sort, id DESC LIMIT 4"),
-    all(c.env, "SELECT * FROM posts WHERE section IN ('blog','negotiation','ai') AND status='published' ORDER BY published_at DESC LIMIT 3"),
+    all(c.env, "SELECT * FROM posts WHERE section IN ('blog','negotiation','ai') AND status='published' AND (published_at IS NULL OR published_at <= date('now')) ORDER BY published_at DESC LIMIT 3"),
     all(c.env, "SELECT * FROM exam_levels WHERE published=1 ORDER BY sort"),
     all(c.env, "SELECT name, role, rating, body, lang, created_at FROM reviews WHERE status='published' ORDER BY id DESC LIMIT 6"),
   ]);
@@ -97,8 +102,8 @@ async function home(c) {
       <a class="btn btn-secondary btn-lg" href="${c.p("/library")}">${c.t("home.cta_library")}</a>
       <a class="btn btn-secondary btn-lg" href="${c.p("/career")}">${c.L("Career Goal", "ক্যারিয়ার গোল")}</a>
     </div>
-    ${social}
     ${heroArt(c)}
+    ${skateHome(c, s)}
   </div>
 </section>
 
@@ -207,7 +212,7 @@ ${items.length ? html`<section class="section">
   </div>
 </section>
 `;
-  return c.html(await layout(c, { body, pageType: "home", gate: true, head: social ? FA_CSS : "" }));
+  return c.html(await layout(c, { body, pageType: "home", gate: true, head: "" }));
 }
 
 function calcCard(c, k) {
@@ -532,17 +537,17 @@ function popularRow(c, list) {
 </div></section>`;
 }
 
-async function postList(c, section) {
+export async function postList(c, section) {
   const q = (c.url.searchParams.get("q") || "").trim().slice(0, 80);
   const cat = (c.url.searchParams.get("category") || "").trim().slice(0, 40);
   // The Procurement Blog shows every post from every section, newest first, with a "Most popular" row on top.
   const everything = section === "blog";
-  const posts = everything ? await all(c.env, "SELECT * FROM posts WHERE status='published' ORDER BY published_at DESC")
-    : await all(c.env, "SELECT * FROM posts WHERE section=? AND status='published' ORDER BY published_at DESC", section);
-  const popular = everything ? await all(c.env, "SELECT * FROM posts WHERE status='published' AND views > 0 ORDER BY views DESC, published_at DESC LIMIT 4") : [];
+  const posts = everything ? await all(c.env, "SELECT * FROM posts WHERE status='published' AND (published_at IS NULL OR published_at <= date('now')) ORDER BY published_at DESC")
+    : await all(c.env, "SELECT * FROM posts WHERE section=? AND status='published' AND (published_at IS NULL OR published_at <= date('now')) ORDER BY featured DESC, published_at DESC", section);
+  const popular = everything ? await all(c.env, "SELECT * FROM posts WHERE status='published' AND (published_at IS NULL OR published_at <= date('now')) AND views > 0 ORDER BY views DESC, published_at DESC LIMIT 4") : [];
   const cats = [...new Set(posts.map((p) => p.category).filter(Boolean))];
   // Negotiation Guru and Procurement AI also show the books and courses the admin tagged for them.
-  const hub = section === "negotiation" || section === "ai";
+  const hub = section === "ai";
   const books = hub ? await all(c.env, "SELECT * FROM items WHERE status='published' AND section=? ORDER BY sort, id DESC", section) : [];
   const courses = []; // courses are no longer shown in Negotiation Guru and Procurement AI
   const extras = books.length + courses.length > 0;
@@ -556,6 +561,10 @@ ${extras ? html`<section class="section-sm" style="padding-top:0"><div class="wr
   ${courses.length ? html`<h2 class="hub-h" id="courses">${c.t("nav.courses")}</h2><div class="grid grid-3">${paidLeft(courses, 3, (k) => k.price > 0).map((k) => courseCard(c, k))}</div>` : ""}
   ${books.length ? html`<h2 class="hub-h" id="books">${c.t("nav.books")}</h2><div class="grid grid-3">${paidLeft(books, 3, (it) => it.price > 0).map((it) => itemCard(c, it))}</div>` : ""}
 </div></section>` : ""}
+${section === "blog" || section === "negotiation" ? html`<section class="section-sm" style="padding:0 0 8px"><div class="wrap"><div class="chips" role="navigation" aria-label="${c.L("Blog sections", "ব্লগের বিভাগ")}">
+  <a class="chip ${section === "blog" ? "on" : ""}" href="${c.p("/blog")}">${c.L("All articles", "সব আর্টিকেল")}</a>
+  <a class="chip ${section === "negotiation" ? "on" : ""}" href="${c.p("/negotiation-guru")}">${c.t("nav.negotiation")}</a>
+  <a class="chip" href="${c.p("/procurement-ai")}">${c.t("nav.ai")}</a><a class="chip" href="${c.p("/career/blog")}">${c.L("Career Blog", "ক্যারিয়ার ব্লগ")}</a></div></div></section>` : ""}
 ${popular.length ? popularRow(c, popular) : ""}
 <section class="section-sm" style="padding-top:0" id="articles">
   <div class="wrap" data-directory>
@@ -573,15 +582,15 @@ ${popular.length ? popularRow(c, popular) : ""}
   return c.html(await layout(c, { title: secT(c, section, "title"), description: secT(c, section, "meta"), body, gate: !posts.length }));
 }
 
-async function postPage(c, section) {
-  const p = await one(c.env, "SELECT * FROM posts WHERE section=? AND slug=? AND status='published'", section, c.params.slug);
+export async function postPage(c, section) {
+  const p = await one(c.env, "SELECT * FROM posts WHERE section=? AND slug=? AND status='published' AND (published_at IS NULL OR published_at <= date('now'))", section, c.params.slug);
   if (!p) throw new HttpError(404);
   const s = await c.settings();
   // Count reads for "Most popular" on the blog (search-engine and link-preview bots are not counted).
   if (!/bot|crawl|spider|slurp|facebookexternalhit|whatsapp|preview/i.test(c.req.headers.get("user-agent") || "")) await run(c.env, "UPDATE posts SET views=views+1 WHERE id=?", p.id);
   const base = "/" + SECTION_PATH[section];
   const fallback = c.lang === "bn" ? !p.body_bn : !p.body_en;
-  const more = await all(c.env, "SELECT slug, title_en, title_bn FROM posts WHERE section=? AND status='published' AND id<>? ORDER BY (category=?) DESC, published_at DESC LIMIT 4", section, p.id, p.category);
+  const more = await all(c.env, "SELECT slug, title_en, title_bn FROM posts WHERE section=? AND status='published' AND (published_at IS NULL OR published_at <= date('now')) AND id<>? ORDER BY (category=?) DESC, published_at DESC LIMIT 4", section, p.id, p.category);
   let refs = [];
   try { refs = JSON.parse(p.refs_json || "[]"); } catch { refs = []; }
   const relCalc = { tco: "total-cost-of-ownership", "bangladesh-import": "shipping-import-cost", incoterms: "shipping-import-cost", "import-documentation": "shipping-import-cost", "china-sourcing": "shipping-import-cost", "supplier-evaluation": "comparative-statement", fundamentals: "comparative-statement", negotiation: "total-cost-of-ownership" }[p.category];
@@ -589,7 +598,7 @@ async function postPage(c, section) {
   const body = html`<article>
 <section class="page-head" style="padding-bottom:24px">
   <div class="wrap wrap-narrow">
-    <nav class="crumbs"><a href="${c.p(base)}">${secNav(c, section)}</a>${p.category ? html`<span>/</span><span>${catLabel(c, p.category)}</span>` : ""}</nav>
+    <nav class="crumbs">${section === "career" ? html`<a href="${c.p("/career")}">${c.L("Career Hub", "ক্যারিয়ার হাব")}</a><span>/</span><a href="${c.p(base)}">${c.L("Career Blog", "ক্যারিয়ার ব্লগ")}</a>` : section === "negotiation" ? html`<a href="${c.p("/blog")}">${c.t("nav.blog")}</a><span>/</span><a href="${c.p(base)}">${secNav(c, section)}</a>` : html`<a href="${c.p(base)}">${secNav(c, section)}</a>`}${p.category ? html`<span>/</span><span>${catLabel(c, p.category)}</span>` : ""}</nav>
     <h1 style="max-width:none">${c.pick(p.title_en, p.title_bn)}</h1>
     <p class="lead">${c.pick(p.summary_en, p.summary_bn)}</p>
     <div class="article-meta"><span>${c.t("learn.by", { author: p.author || "ProcureBest" })}</span>${p.published_at ? html`<span>${c.t("learn.published")}: ${c.date(p.published_at)}</span>` : ""}</div>
@@ -601,12 +610,13 @@ ${p.cover_id ? html`<div class="wrap wrap-narrow"><img class="article-cover" src
 <section class="section-sm" style="padding-top:12px">
   <div class="wrap wrap-narrow">
     <div class="prose" ${fallback ? raw(`lang="${c.lang === "bn" ? "en" : "bn"}"`) : ""}>${raw(markdown(c.pick(p.body_en, p.body_bn)))}</div>
+    ${p.tags ? html`<div class="chips" style="margin-top:28px">${String(p.tags).split(",").map((t) => t.trim()).filter(Boolean).map((t) => html`<span class="chip">#${t}</span>`)}</div>` : ""}
     ${refs.length ? html`<h2 style="font-size:22px;margin-top:48px">${c.t("learn.references")}</h2><ol class="method-list">${refs.map((r) => html`<li>${r.url ? html`<a href="${r.url}" rel="noopener nofollow" target="_blank">${r.title || r.url}</a>` : r.title}</li>`)}</ol>` : ""}
     ${relCalc && !calcOff(s).has(relCalc) ? html`<h2 style="font-size:22px;margin-top:48px">${c.t("learn.related_tools")}</h2><div class="grid grid-2" style="margin-top:16px">${calcCard(c, BY_SLUG[relCalc])}</div>` : ""}
     ${more.length ? html`<h2 style="font-size:22px;margin-top:48px">${c.t("learn.more")}</h2><ul class="feature-list">${more.map((m) => html`<li>${icon("book", 18)}<a href="${c.p(`${base}/${m.slug}`)}">${c.pick(m.title_en, m.title_bn)}</a></li>`)}</ul>` : ""}
   </div>
 </section></article>`;
-  return c.html(await layout(c, { title: c.pick(p.title_en, p.title_bn), description: c.pick(p.summary_en, p.summary_bn), pageType: "article", body,
+  return c.html(await layout(c, { title: c.pick(p.seo_title_en, p.seo_title_bn) || c.pick(p.title_en, p.title_bn), description: c.pick(p.seo_desc_en, p.seo_desc_bn) || c.pick(p.summary_en, p.summary_bn), pageType: "article", body,
     head: html`<script type="application/ld+json">${jsonScript(ld)}</script>`, ogImage: p.cover_id ? `${c.siteUrl}/media/${p.cover_id}` : "" }));
 }
 
@@ -779,12 +789,13 @@ async function coursePage(c) {
 
 // ------------------------------------------------------------------ sitemap & robots
 async function sitemap(c) {
-  const [posts, items, courses] = await Promise.all([
-    all(c.env, "SELECT section, slug, updated_at FROM posts WHERE status='published'"),
+  const [posts, roles, certs, items, courses] = await Promise.all([
+    all(c.env, "SELECT section, slug, updated_at FROM posts WHERE status='published' AND (published_at IS NULL OR published_at <= date('now'))"),
+    all(c.env, "SELECT slug FROM job_roles WHERE status='published'"), all(c.env, "SELECT slug FROM certifications WHERE status='published'"),
     all(c.env, "SELECT slug, updated_at FROM items WHERE status='published'"),
     all(c.env, "SELECT slug FROM courses WHERE status='published'"),
   ]);
-  const paths = ["/", "/calculators", ...calcList(await c.settings()).map((k) => "/calculators/" + k.slug), "/exams", "/library", "/courses", "/blog", "/negotiation-guru", "/procurement-ai", "/glossary", "/career",
+  const paths = ["/", "/calculators", ...calcList(await c.settings()).map((k) => "/calculators/" + k.slug), "/exams", "/library", "/courses", "/blog", "/negotiation-guru", "/procurement-ai", "/glossary", ...CAREER_SITEMAP, ...roles.map((r) => "/career/job-roles/" + r.slug), ...certs.map((x) => "/career/certifications/" + x.slug),
     "/certificates/verify", "/about", "/contact", "/help", "/privacy", "/terms", "/certificate-policy", "/disclaimer",
     ...posts.map((p) => `/${SECTION_PATH[p.section] || p.section}/${p.slug}`), ...items.map((i) => "/library/" + i.slug), ...courses.map((k) => "/courses/" + k.slug)];
   const enOnly = (p) => /^\/(exams|certificates|results)(\/|$)/.test(p);
@@ -808,8 +819,6 @@ export function registerPublic(r) {
   r.get(`${L}/blog`, (c) => postList(c, "blog"));
   r.get(`${L}/blog/:slug`, (c) => postPage(c, "blog"));
   r.get(`${L}/learn/:slug`, (c) => c.redirect(c.p("/blog/" + c.params.slug), 301));
-  r.get(`${L}/career`, (c) => postList(c, "career"));
-  r.get(`${L}/career/:slug`, (c) => postPage(c, "career"));
   r.get(`${L}/negotiation-guru`, (c) => postList(c, "negotiation"));
   r.get(`${L}/negotiation-guru/:slug`, (c) => postPage(c, "negotiation"));
   r.get(`${L}/procurement-ai`, (c) => postList(c, "ai"));

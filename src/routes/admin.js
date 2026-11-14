@@ -16,6 +16,7 @@ import { ALL_CALCS } from "../lib/calclist.js";
 import { calcOff } from "../lib/settings.js";
 import { tr } from "../../public/js/calc/defs.js";
 import { mergeRoadmap } from "../../public/js/calc/roadmap.js";
+import { installCareerStep } from "../lib/career.js";
 
 const PAGE = 50;
 const TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
@@ -31,7 +32,7 @@ const MSG = {
 };
 
 // ------------------------------------------------------------------ layout & helpers
-async function adminLayout(c, { title, body, active = "", narrow = false }) {
+export async function adminLayout(c, { title, body, active = "", narrow = false }) {
   const csrf = await c.csrfToken();
   const pending = Number(await scalar(c.env, "SELECT COUNT(*) FROM orders WHERE status='pending'"));
   const unread = Number(await scalar(c.env, "SELECT COUNT(*) FROM messages WHERE read_at IS NULL"));
@@ -44,7 +45,7 @@ async function adminLayout(c, { title, body, active = "", narrow = false }) {
     ["blog", "/admin/posts?section=blog", "file", c.L("Blog", "ব্লগ")],
     ["negotiation", "/admin/posts?section=negotiation", "chat", c.L("Negotiation Guru", "নেগোসিয়েশন গুরু")],
     ["ai", "/admin/posts?section=ai", "sparkle", c.L("Procurement AI", "প্রকিউরমেন্ট এআই")],
-    ["career", "/admin/posts?section=career", "briefcase", c.L("Career", "ক্যারিয়ার")],
+    ["career", "/admin/career", "briefcase", c.L("Career Management", "ক্যারিয়ার ম্যানেজমেন্ট")],
     ["glossary", "/admin/glossary", "text", c.L("Glossary", "গ্লসারি")],
     ["exams", "/admin/exams", "award", c.L("Exams", "পরীক্ষা")],
     ["questions", "/admin/questions", "book", c.L("Question bank", "প্রশ্নব্যাংক")],
@@ -87,20 +88,20 @@ async function adminLayout(c, { title, body, active = "", narrow = false }) {
 <script src="/js/admin.js?v=${ASSET_V}" defer></script></body></html>`);
 }
 
-const csrfInput = async (c) => html`<input type="hidden" name="_csrf" value="${await c.csrfToken()}">`;
-const fld = (name, label, value = "", { type = "text", help = "", full = false, required = false, rows = 0, attrs = "", third = false } = {}) => html`
+export const csrfInput = async (c) => html`<input type="hidden" name="_csrf" value="${await c.csrfToken()}">`;
+export const fld = (name, label, value = "", { type = "text", help = "", full = false, required = false, rows = 0, attrs = "", third = false } = {}) => html`
   <div class="field ${full ? "full" : third ? "third" : ""}"><label for="f-${name}">${label}${required ? " *" : ""}</label>
   ${rows ? html`<textarea id="f-${name}" name="${name}" rows="${rows}" ${required ? raw("required") : ""} ${raw(attrs)}>${value ?? ""}</textarea>`
     : html`<input id="f-${name}" type="${type}" name="${name}" value="${value ?? ""}" ${required ? raw("required") : ""} ${raw(attrs)}>`}
   ${help ? html`<span class="help">${help}</span>` : ""}</div>`;
-const sel = (name, label, value, options, { help = "", full = false, third = false } = {}) => html`
+export const sel = (name, label, value, options, { help = "", full = false, third = false } = {}) => html`
   <div class="field ${full ? "full" : third ? "third" : ""}"><label for="f-${name}">${label}</label><select id="f-${name}" name="${name}">
   ${options.map(([v, l]) => html`<option value="${v}" ${String(v) === String(value) ? raw("selected") : ""}>${l}</option>`)}</select>${help ? html`<span class="help">${help}</span>` : ""}</div>`;
-const statusTag = (c, s) => html`<span class="tag ${s === "published" || s === "approved" || s === "valid" ? "ok" : s === "rejected" || s === "revoked" ? "err" : s === "pending" ? "warn" : ""}">${statusLabel(c, s)}</span>`;
+export const statusTag = (c, s) => html`<span class="tag ${s === "published" || s === "approved" || s === "valid" ? "ok" : s === "rejected" || s === "revoked" ? "err" : s === "pending" ? "warn" : ""}">${statusLabel(c, s)}</span>`;
 const statusLabel = (c, s) => ({ published: c.L("Published", "প্রকাশিত"), draft: c.L("Draft", "খসড়া"), pending: c.L("Pending", "অপেক্ষমাণ"), approved: c.L("Approved", "অনুমোদিত"), rejected: c.L("Not approved", "অনুমোদিত হয়নি"), valid: c.L("Valid", "বৈধ"), revoked: c.L("Revoked", "বাতিল") }[s] || s);
 const fileSize = (c, b) => (!b ? "—" : b < 1048576 ? `${c.num(b / 1024, 0)} KB` : `${c.num(b / 1048576, 1)} MB`);
-const back = (path, key) => `${path}${path.includes("?") ? "&" : "?"}msg=${key}`;
-const errBack = (path, text) => `${path}${path.includes("?") ? "&" : "?"}err=${encodeURIComponent(text)}`;
+export const back = (path, key) => `${path}${path.includes("?") ? "&" : "?"}msg=${key}`;
+export const errBack = (path, text) => `${path}${path.includes("?") ? "&" : "?"}err=${encodeURIComponent(text)}`;
 function pager(c, page, total, base) {
   const pages = Math.max(1, Math.ceil(total / PAGE));
   if (pages <= 1) return "";
@@ -108,7 +109,7 @@ function pager(c, page, total, base) {
   return html`<div class="row" style="margin-top:16px;justify-content:center">${page > 1 ? html`<a class="btn btn-ghost btn-sm" href="${u(page - 1)}">${icon("arrow-left", 14)}</a>` : ""}
     <span class="small muted">${c.d(page)} / ${c.d(pages)}</span>${page < pages ? html`<a class="btn btn-ghost btn-sm" href="${u(page + 1)}">${icon("arrow-right", 14)}</a>` : ""}</div>`;
 }
-function uploadField(c, { name, label, file, accept, kind, help, spec }) {
+export function uploadField(c, { name, label, file, accept, kind, help, spec }) {
   return html`<div class="field full" data-upload data-kind="${kind}" data-accept="${accept}"${spec ? raw(` data-img-w="${spec.w}" data-img-h="${spec.h || 0}" data-img-kb="${spec.kb}" data-img-fit="${spec.fit}"`) : ""}>
     <label>${label}</label>
     <div class="upload-box">
@@ -323,7 +324,8 @@ async function uploadInit(c) {
   const b = await c.body();
   const name = clip(b.name, 200), size = toInt(b.size, 0), kind = ["cover", "preview"].includes(b.kind) ? b.kind : "file";
   const e = ext(name);
-  const allowed = kind === "cover" ? IMAGE_EXT : kind === "preview" ? ["pdf"] : FILE_EXT;
+  const kind2 = b.kind === "video" ? "video" : kind;
+  const allowed = kind2 === "video" ? ["mp4", "webm"] : kind === "cover" ? IMAGE_EXT : kind === "preview" ? ["pdf"] : FILE_EXT;
   if (!allowed.includes(e)) return c.json({ ok: false, error: c.L(`This file type (.${e}) is not allowed.`, `এই ধরনের ফাইল (.${e}) অনুমোদিত নয়।`) }, 400);
   const max = kind === "cover" ? 3 * 1024 * 1024 : kind === "preview" ? Math.min(maxFileSize(c.env), 3 * 1024 * 1024) : maxFileSize(c.env);
   if (size <= 0 || size > max) return c.json({ ok: false, error: c.L(`The file is too large. Maximum: ${fileSize(c, max)}.`, `ফাইলটি অনেক বড়। সর্বোচ্চ: ${fileSize(c, max)}।`) }, 400);
@@ -347,13 +349,13 @@ async function uploadComplete(c) {
   return c.json(ok ? { ok: true, id: f.id, name: f.name, size: f.size } : { ok: false, error: "incomplete" }, ok ? 200 : 400);
 }
 async function seedStep(c) {
-  try { return c.json({ ok: true, ...(await installStep(c.env, c.params.step)) }); }
+  try { return c.json({ ok: true, ...(c.params.step.startsWith("career") ? await installCareerStep(c.env, c.params.step) : await installStep(c.env, c.params.step)) }); }
   catch (e) { console.error(e); return c.json({ ok: false, error: String(e.message || e) }, 500); }
 }
 
 // ------------------------------------------------------------------ posts (blog & career)
 const SECTIONS = ["blog", "negotiation", "ai", "career"];
-const SECTION_PATH = { blog: "blog", career: "career", negotiation: "negotiation-guru", ai: "procurement-ai" };
+const SECTION_PATH = { blog: "blog", career: "career/blog", negotiation: "negotiation-guru", ai: "procurement-ai" };
 const sectionTitle = (c, section) => ({ blog: c.L("Blog articles", "ব্লগ আর্টিকেল"), career: c.L("Career articles", "ক্যারিয়ার লেখা"),
   negotiation: c.L("Negotiation Guru", "নেগোসিয়েশন গুরু"), ai: c.L("Procurement AI", "প্রকিউরমেন্ট এআই") }[section]);
 async function postsList(c) {
@@ -365,7 +367,7 @@ async function postsList(c) {
   <div class="table-wrap"><table><thead><tr><th>${c.L("Title", "শিরোনাম")}</th><th>${c.L("Category", "ক্যাটাগরি")}</th><th>${c.L("Published", "প্রকাশ")}</th><th>${c.L("Status", "অবস্থা")}</th><th></th></tr></thead>
   <tbody>${rows.length ? rows.map((r) => html`<tr><td><div class="row" style="gap:10px;flex-wrap:nowrap">${r.cover_id ? html`<img src="/media/${r.cover_id}" alt="" class="adm-thumb">` : ""}<div><strong>${c.pick(r.title_en, r.title_bn)}</strong><div class="tiny muted">/${SECTION_PATH[section]}/${r.slug}</div></div></div></td><td class="small">${r.category}</td><td class="small">${c.date(r.published_at)}</td><td>${statusTag(c, r.status)}</td>
     <td class="num"><a class="btn btn-ghost btn-sm" href="/admin/posts/${r.id}">${c.L("Edit", "এডিট")}</a></td></tr>`) : html`<tr><td colspan="5" class="muted">${c.L("No articles yet.", "এখনো কোনো লেখা নেই।")}</td></tr>`}</tbody></table></div>`;
-  return adminLayout(c, { title, body, active: section });
+  return adminLayout(c, { title, body, active: section === "career" ? "career" : section });
 }
 
 async function postEdit(c) {
@@ -374,7 +376,7 @@ async function postEdit(c) {
   const p = isNew ? { section, status: "draft", published_at: nowIso().slice(0, 10), author: "ProcureBest", refs_json: "[]" } : await one(c.env, "SELECT * FROM posts WHERE id=?", toInt(c.params.id));
   if (!p) throw new HttpError(404);
   const refs = parseJson(p.refs_json, []).map((r) => (r.url ? `${r.title || ""} | ${r.url}` : r.title)).join("\n");
-  const cats = { career: ["interview", "cv", "skills", "growth"], negotiation: ["preparation", "tactics", "scripts", "case-study"], ai: ["prompts", "tools", "spend-analysis", "automation"] }[p.section]
+  const cats = { career: ["career-guide", "career-development", "skills", "job-market", "interview", "leadership", "professional-development", "success-stories", "cv"], negotiation: ["preparation", "tactics", "scripts", "case-study"], ai: ["prompts", "tools", "spend-analysis", "automation"] }[p.section]
     || ["fundamentals", "tco", "supplier-evaluation", "incoterms", "bangladesh-import", "china-sourcing", "inventory", "kpi", "negotiation", "import-documentation"];
   const body = html`<form method="post" action="/admin/posts/${isNew ? "new" : p.id}" class="panel">${await csrfInput(c)}<input type="hidden" name="section" value="${p.section}">
   <div class="form-grid">
@@ -389,7 +391,11 @@ async function postEdit(c) {
     <div class="field full" style="margin-top:-10px">${imageInsert(c, "f-body_bn")}</div>
     <div class="field third"><label for="f-category">${c.L("Category", "ক্যাটাগরি")}</label><input id="f-category" name="category" value="${p.category || ""}" list="cats"><datalist id="cats">${cats.map((k) => html`<option value="${k}">`)}</datalist></div>
     ${sel("status", c.L("Status", "অবস্থা"), p.status, [["draft", c.L("Draft (hidden)", "খসড়া (লুকানো)")], ["published", c.L("Published", "প্রকাশিত")]], { third: true })}
-    ${fld("published_at", c.L("Publish date", "প্রকাশের তারিখ"), (p.published_at || "").slice(0, 10), { type: "date", third: true })}
+    ${fld("published_at", c.L("Publish date", "প্রকাশের তারিখ"), (p.published_at || "").slice(0, 10), { type: "date", third: true, help: c.L("A future date schedules the article: it appears on that day.", "ভবিষ্যতের তারিখ দিলে লেখাটি সেদিন প্রকাশিত হবে (শিডিউল)।") })}
+    ${fld("tags", c.L("Tags (comma-separated)", "ট্যাগ (কমা দিয়ে আলাদা)"), p.tags, { help: c.L("Use skill keys such as negotiation, cost-analysis to link the article to the skills assessment.", "দক্ষতার কী (যেমন negotiation, cost-analysis) দিলে লেখাটি স্কিলস অ্যাসেসমেন্টে যুক্ত হবে।") })}
+    ${sel("featured", c.L("Featured", "ফিচার্ড"), p.featured ? "1" : "0", [["0", c.L("No", "না")], ["1", c.L("Yes — show first", "হ্যাঁ — আগে দেখান")]], { third: true })}
+    ${fld("seo_title_en", c.L("SEO title (English, optional)", "SEO শিরোনাম (ইংরেজি, ঐচ্ছিক)"), p.seo_title_en)}${fld("seo_title_bn", c.L("SEO title (Bengali, optional)", "SEO শিরোনাম (বাংলা, ঐচ্ছিক)"), p.seo_title_bn)}
+    ${fld("seo_desc_en", c.L("SEO description (English)", "SEO বিবরণ (ইংরেজি)"), p.seo_desc_en, { rows: 2 })}${fld("seo_desc_bn", c.L("SEO description (Bengali)", "SEO বিবরণ (বাংলা)"), p.seo_desc_bn, { rows: 2 })}
     ${fld("author", c.L("Author", "লেখক"), p.author)}
     ${fld("slug", c.L("Web address (slug)", "ওয়েব ঠিকানা (slug)"), p.slug, { help: c.L("Leave empty to create it from the English title.", "ফাঁকা রাখলে ইংরেজি শিরোনাম থেকে তৈরি হবে।") })}
     ${fld("refs", c.L("References (one per line: Title | https://link)", "রেফারেন্স (প্রতি লাইনে একটি: শিরোনাম | https://লিংক)"), refs, { rows: 3, full: true })}
@@ -427,6 +433,9 @@ async function postSave(c) {
     id = old.id;
     if (old.cover_id && old.cover_id !== coverId) await deleteFile(c.env, old.cover_id);
   }
+  await run(c.env, "UPDATE posts SET tags=?, featured=?, seo_title_en=?, seo_title_bn=?, seo_desc_en=?, seo_desc_bn=? WHERE id=?",
+    String(f.get("tags") || "").split(",").map((t) => slugify(t)).filter(Boolean).slice(0, 12).join(","), f.get("featured") === "1" ? 1 : 0,
+    clip(f.get("seo_title_en"), 120), clip(f.get("seo_title_bn"), 120), clip(f.get("seo_desc_en"), 300), clip(f.get("seo_desc_bn"), 300), id);
   return c.redirect(back(`/admin/posts/${id}`, "saved"));
 }
 async function postDelete(c) {
@@ -1172,10 +1181,9 @@ async function aboutSave(c) {
 }
 
 // ------------------------------------------------------------------ registration
-export function registerAdmin(r) {
-  // Admin pages use their own language cookie (default Bengali).
-  const setLang = (c) => { const l = getCookie(c.req, "pb_admin_lang"); c.setLang(l === "en" ? "en" : "bn"); };
-  const guard = (fn, { form = false, api = false } = {}) => async (c) => {
+// Admin pages use their own language cookie (default Bengali).
+const setLang = (c) => { const l = getCookie(c.req, "pb_admin_lang"); c.setLang(l === "en" ? "en" : "bn"); };
+export const guard = (fn, { form = false, api = false } = {}) => async (c) => {
     setLang(c);
     if (!(await c.isAdmin())) return api ? c.json({ ok: false, error: "signed out" }, 401) : c.redirect("/admin/login");
     if (c.req.method !== "GET") {
@@ -1183,8 +1191,9 @@ export function registerAdmin(r) {
       if (api) { if (!safeEqual(c.req.headers.get("X-CSRF") || "", await c.csrfToken())) return c.json({ ok: false, error: "csrf" }, 403); }
       else if (form && !(await c.checkCsrf(await c.form()))) return new Response("Your session expired. Go back, reload the page and try again.", { status: 403 });
     }
-    return fn(c);
-  };
+  return fn(c);
+};
+export function registerAdmin(r) {
   r.get("/admin/login", async (c) => { setLang(c); return (await c.isAdmin()) ? c.redirect("/admin") : loginPage(c); });
   r.post("/admin/login", async (c) => { setLang(c); return doLogin(c); });
   r.post("/admin/logout", guard(async (c) => { c.endAdmin(); return c.redirect("/admin/login"); }, { form: true }));

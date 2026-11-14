@@ -77,6 +77,20 @@ export const DEFAULTS = {
   popup_cta_en: "Take the free exam now",
   popup_cta_bn: "এখনই ফ্রি পরীক্ষা দিন",
   popup_cta_url: "/exams",
+  // Career Hub (Admin → Career Management → Hub settings)
+  career_title_en: "Procurement Career Development Hub",
+  career_title_bn: "প্রকিউরমেন্ট ক্যারিয়ার ডেভেলপমেন্ট হাব",
+  career_lead_en: "Know where you stand, see where you can go and get a clear plan — from your first procurement job to Chief Procurement Officer.",
+  career_lead_bn: "আপনি কোথায় আছেন জানুন, কোথায় যেতে পারেন দেখুন এবং স্পষ্ট পরিকল্পনা নিন — প্রথম প্রকিউরমেন্ট চাকরি থেকে চিফ প্রকিউরমেন্ট অফিসার পর্যন্ত।",
+  career_sections: "",
+  career_off: "",
+  career_weights: "60,25,15",
+  career_job_sources: "",
+  // Skateboard "career jump" animation: built-in drawing, or a licensed video once uploaded
+  skate_enabled: "1",
+  skate_home: "1",
+  skate_video_id: "",
+  skate_poster_id: "",
   // Moving procurement quotes (one per line)
   quotes_enabled: "1",
   quotes_en: "The lowest price is not always the lowest cost.\nA good buyer negotiates the deal; a great buyer builds the relationship.\nMeasure delivery, quality and cost — the savings will follow.\nNo PO, no payment: control begins before the purchase.\nKnow your BATNA before you start talking.\nA supplier becomes a partner when the numbers are open on both sides.\nTotal cost of ownership starts where the quotation ends.\nA risk you cannot see is a cost you have not priced.",

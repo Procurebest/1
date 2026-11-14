@@ -673,14 +673,15 @@ console.log("\nEmail verification mode (email service configured) + D1 file stor
     assert.match(h.text, /class="quote-strip"/);
     assert.match(h.text, /data-typewriter=/);
   });
-  await test("a book tagged for Negotiation Guru appears on that page; the menu has Books/Articles but no Courses", async () => {
+  await test("Negotiation Guru lives inside the Blog (articles only); About and Negotiation Guru are not top menu items", async () => {
     await env.DB.prepare("UPDATE items SET section='negotiation' WHERE slug='supplier-database'").run();
     const p = await client(env).req("GET", "/en/negotiation-guru");
     assert.equal(p.status, 200);
-    assert.match(p.text, /id="books"/);
-    assert.match(p.text, /Supplier Database/);
-    assert.doesNotMatch(p.text, /negotiation-guru#courses/);
-    assert.match(p.text, /negotiation-guru#books/);
+    assert.doesNotMatch(p.text, /id="books"/);
+    const menu = p.text.split('<ul class="nav-links">')[1].split("</ul>\n    <div")[0];
+    assert.match(menu, /href="\/en\/negotiation-guru"/, "Negotiation Guru is in the Blog drop-down");
+    assert.doesNotMatch(menu, /href="\/en\/about" aria-haspopup/, "About is not a top menu item");
+    assert.match(p.text, /class="footer"[\s\S]*href="\/en\/about"/, "About stays in the footer");
   });
   await test("posts in the new sections get their own address and a cover picture", async () => {
     const pg = await admin.req("GET", "/admin/posts/new?section=ai");
@@ -690,6 +691,94 @@ console.log("\nEmail verification mode (email service configured) + D1 file stor
     assert.equal(p.status, 200);
     assert.match(p.text, /<img src="\/media\/x"/);
     assert.match((await client(env).req("GET", "/en/procurement-ai")).text, /Prompts for buyers/);
+  });
+}
+
+// =====================================================================================
+console.log("\nCareer Hub");
+{
+  const { env } = makeEnv({ storage: "kv" });
+  const admin = client(env), visitor = client(env);
+  await test("hub works before any data exists", async () => {
+    const r = await visitor.req("GET", "/en/career");
+    assert.equal(r.status, 200);
+    assert.match(r.text, /being prepared/);
+  });
+  let csrf;
+  await test("admin installs the starter career data", async () => {
+    await admin.req("POST", "/admin/login", { form: { password: "local-admin-password" } });
+    const pg = await admin.req("GET", "/admin/career");
+    csrf = csrfOf(pg.text);
+    for (const step of ["career1", "career2", "career3"]) {
+      const r = await admin.req("POST", "/admin/api/seed/" + step, { json: {}, headers: { "X-CSRF": csrf } });
+      assert.equal(r.status, 200, step);
+    }
+    const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM job_roles").first("n");
+    assert.equal(n, 18);
+    // running it twice adds nothing
+    for (const step of ["career1", "career2", "career3"]) await admin.req("POST", "/admin/api/seed/" + step, { json: {}, headers: { "X-CSRF": csrf } });
+    assert.equal(await env.DB.prepare("SELECT COUNT(*) AS n FROM job_roles").first("n"), 18);
+    assert.equal(await env.DB.prepare("SELECT COUNT(*) AS n FROM career_questions").first("n"), 20);
+  });
+  await test("every Career Hub page opens in English and Bengali", async () => {
+    for (const p of ["", "/roadmap", "/job-roles", "/job-roles/procurement-manager", "/career-analysis", "/skills-assessment", "/certifications", "/certifications/cips",
+      "/tools", "/tools/cv-checklist", "/tools/certification-comparison", "/cv-linkedin", "/interview-preparation", "/salary-benchmark", "/opportunities", "/blog", "/blog/start-procurement-career-bangladesh"]) {
+      for (const l of ["en", "bn"]) assert.equal((await visitor.req("GET", `/${l}/career${p}`)).status, 200, `/${l}/career${p}`);
+    }
+  });
+  await test("old career article addresses redirect to the Career Blog", async () => {
+    const r = await visitor.req("GET", "/en/career/procurement-interview-preparation");
+    assert.equal(r.status, 301);
+    assert.equal(r.location, "/en/career/blog/procurement-interview-preparation");
+  });
+  await test("salary rows always show basis, source and date; estimates are labelled", async () => {
+    const r = await visitor.req("GET", "/en/career/salary-benchmark?role=procurement-officer");
+    assert.match(r.text, /Estimate/);
+    assert.match(r.text, /not a salary survey/);
+    assert.match(r.text, /Updated/);
+  });
+  await test("certification fees are not shown unless verified", async () => {
+    const r = await visitor.req("GET", "/en/career/certifications/cips");
+    assert.match(r.text, /We only show a fee after we have verified it/);
+  });
+  await test("roadmap, library and calculator share one set of roles", async () => {
+    const pg = await admin.req("GET", "/admin/career/roles/new");
+    const r = await admin.req("POST", "/admin/career/roles/new", { form: { _csrf: formCsrf(pg.text), title_en: "Procurement Business Partner", level_slug: "manager", track: "management", exp_min: "6", exp_max: "10", status: "published" } });
+    assert.equal(r.status, 303);
+    for (const p of ["/en/career/roadmap", "/en/career/job-roles", "/en/career/career-analysis"]) assert.match((await visitor.req("GET", p)).text, /Procurement Business Partner/, p);
+    assert.equal((await visitor.req("GET", "/en/career/job-roles/procurement-business-partner")).status, 200);
+  });
+  await test("a switched-off feature leaves the menu and returns 404", async () => {
+    const pg = await admin.req("GET", "/admin/career");
+    const form = { _csrf: formCsrf(pg.text), career_weights: "60,25,15", feat_form: "1" };
+    for (const k of ["blog", "roadmap", "job-roles", "career-analysis", "skills-assessment", "certifications", "tools", "cv-linkedin", "interview-preparation", "opportunities"]) form["feat_" + k] = "1";
+    assert.equal((await admin.req("POST", "/admin/career", { form })).status, 303);
+    assert.equal((await visitor.req("GET", "/en/career/salary-benchmark")).status, 404);
+    assert.doesNotMatch((await visitor.req("GET", "/en/career")).text, /href="\/en\/career\/salary-benchmark"/);
+  });
+  await test("scheduled articles stay hidden until their date", async () => {
+    const pg = await admin.req("GET", "/admin/posts/new?section=career");
+    await admin.req("POST", "/admin/posts/new", { form: { _csrf: formCsrf(pg.text), section: "career", title_en: "Future article", body_en: "Soon", status: "published", published_at: "2099-01-01" } });
+    assert.doesNotMatch((await visitor.req("GET", "/en/career/blog")).text, /Future article/);
+    assert.equal((await visitor.req("GET", "/en/career/blog/future-article")).status, 404);
+  });
+}
+{
+  // the engine: transparent maths, never a probability
+  const { analyze, findPath } = await import("../public/js/career/engine.js");
+  const data = { levels: [{ slug: "a" }, { slug: "b" }], roles: [{ slug: "x", level_slug: "a", exp_min: 0, exp_max: 2, title_en: "X" }, { slug: "y", level_slug: "b", exp_min: 4, exp_max: 8, title_en: "Y" }],
+    paths: [{ from_slug: "x", to_slug: "y", kind: "next" }], skills: [{ slug: "s", in_calc: 1, name_en: "S", learn_en: "Learn S" }], roleSkills: [{ role_slug: "y", skill_slug: "s", level: 4 }],
+    certs: [{ slug: "c", name_en: "C", skill_slugs: "s", stages: "b" }], roleCerts: [{ role_slug: "y", cert_slug: "c", priority: "core" }], rules: [] };
+  await test("career engine: readiness = weighted skills, experience and core qualifications", async () => {
+    const r = analyze(data, { current: "x", target: "y", procExp: 2, skills: { s: 2 }, certs: [] }, { skills: 60, experience: 25, certs: 15 });
+    assert.equal(r.readiness.skills, 50);
+    assert.equal(r.readiness.experience, 50);
+    assert.equal(r.readiness.certs, 0);
+    assert.equal(r.readiness.score, 43);
+    assert.equal(r.expGap, 2);
+    assert.deepEqual(findPath(data, "x", "y"), ["x", "y"]);
+    assert.equal(r.certRecs[0].slug, "c");
+    assert.equal(r.certRecs[0].reason, "core");
   });
 }
 

@@ -7,6 +7,8 @@ import { registerPublic } from "./routes/public.js";
 import { registerVisitor } from "./routes/visitor.js";
 import { registerApi } from "./routes/api.js";
 import { registerAdmin } from "./routes/admin.js";
+import { registerCareer } from "./routes/career.js";
+import { registerCareerAdmin } from "./routes/admin-career.js";
 import { errorPage } from "./views/layout.js";
 
 const router = new Router();
@@ -15,11 +17,13 @@ router.get("/", async (c) => {
   const pref = (c.req.headers.get("Accept-Language") || "").toLowerCase().startsWith("bn") ? "bn" : s.default_lang;
   return c.redirect(`/${pref === "bn" ? "bn" : "en"}/`, 302);
 });
-router.get("/healthz", (c) => c.json({ ok: true, version: "2026-10-22-v4" }));
+router.get("/healthz", (c) => c.json({ ok: true, version: "2026-11-14-v5-career-hub" }));
+registerCareer(router);
 registerPublic(router);
 registerVisitor(router);
 registerApi(router);
 registerAdmin(router);
+registerCareerAdmin(router);
 
 export default {
   async fetch(req, env, exec) {

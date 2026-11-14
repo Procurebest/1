@@ -3,7 +3,7 @@
 // migrations by hand. Every statement is idempotent (IF NOT EXISTS / INSERT OR IGNORE).
 import { randomToken, nowIso } from "./util.js";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
@@ -38,7 +38,8 @@ const SCHEMA = [
      summary_en TEXT NOT NULL DEFAULT '', summary_bn TEXT NOT NULL DEFAULT '',
      body_en TEXT NOT NULL DEFAULT '', body_bn TEXT NOT NULL DEFAULT '',
      author TEXT NOT NULL DEFAULT 'ProcureBest', refs_json TEXT NOT NULL DEFAULT '[]',
-     status TEXT NOT NULL DEFAULT 'draft', published_at TEXT, updated_at TEXT NOT NULL, cover_id TEXT, views INTEGER NOT NULL DEFAULT 0, UNIQUE (section, slug))`,
+     status TEXT NOT NULL DEFAULT 'draft', published_at TEXT, updated_at TEXT NOT NULL, cover_id TEXT, views INTEGER NOT NULL DEFAULT 0,
+     tags TEXT NOT NULL DEFAULT '', seo_title_en TEXT NOT NULL DEFAULT '', seo_title_bn TEXT NOT NULL DEFAULT '', seo_desc_en TEXT NOT NULL DEFAULT '', seo_desc_bn TEXT NOT NULL DEFAULT '', featured INTEGER NOT NULL DEFAULT 0, UNIQUE (section, slug))`,
   `CREATE TABLE IF NOT EXISTS glossary (
      id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE,
      term_en TEXT NOT NULL DEFAULT '', term_bn TEXT NOT NULL DEFAULT '',
@@ -102,6 +103,57 @@ const SCHEMA = [
      id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT '',
      rating INTEGER NOT NULL DEFAULT 5, body TEXT NOT NULL, lang TEXT NOT NULL DEFAULT 'en',
      status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT)`,
+  // v6: Career Hub. One set of roles, skills and certifications is shared by the roadmap tree,
+  // the job role library, the career analysis calculator and the skills assessment.
+  `CREATE TABLE IF NOT EXISTS career_levels (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, sort INTEGER NOT NULL DEFAULT 100,
+     title_en TEXT NOT NULL DEFAULT '', title_bn TEXT NOT NULL DEFAULT '', years_en TEXT NOT NULL DEFAULT '', years_bn TEXT NOT NULL DEFAULT '',
+     desc_en TEXT NOT NULL DEFAULT '', desc_bn TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'published')`,
+  `CREATE TABLE IF NOT EXISTS job_roles (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, level_slug TEXT NOT NULL, track TEXT NOT NULL DEFAULT '',
+     sort INTEGER NOT NULL DEFAULT 100, status TEXT NOT NULL DEFAULT 'published', exp_min REAL NOT NULL DEFAULT 0, exp_max REAL NOT NULL DEFAULT 0,
+     title_en TEXT NOT NULL DEFAULT '', title_bn TEXT NOT NULL DEFAULT '', overview_en TEXT NOT NULL DEFAULT '', overview_bn TEXT NOT NULL DEFAULT '',
+     resp_en TEXT NOT NULL DEFAULT '', resp_bn TEXT NOT NULL DEFAULT '', skills_en TEXT NOT NULL DEFAULT '', skills_bn TEXT NOT NULL DEFAULT '',
+     tech_en TEXT NOT NULL DEFAULT '', tech_bn TEXT NOT NULL DEFAULT '', edu_en TEXT NOT NULL DEFAULT '', edu_bn TEXT NOT NULL DEFAULT '',
+     industries_en TEXT NOT NULL DEFAULT '', industries_bn TEXT NOT NULL DEFAULT '', companies_en TEXT NOT NULL DEFAULT '', companies_bn TEXT NOT NULL DEFAULT '',
+     resources_en TEXT NOT NULL DEFAULT '', resources_bn TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')`,
+  `CREATE TABLE IF NOT EXISTS career_paths (from_slug TEXT NOT NULL, to_slug TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'next', PRIMARY KEY (from_slug, to_slug))`,
+  `CREATE TABLE IF NOT EXISTS skills (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, sort INTEGER NOT NULL DEFAULT 100, status TEXT NOT NULL DEFAULT 'published',
+     in_calc INTEGER NOT NULL DEFAULT 1, in_assess INTEGER NOT NULL DEFAULT 1, name_en TEXT NOT NULL DEFAULT '', name_bn TEXT NOT NULL DEFAULT '',
+     desc_en TEXT NOT NULL DEFAULT '', desc_bn TEXT NOT NULL DEFAULT '', statements_en TEXT NOT NULL DEFAULT '', statements_bn TEXT NOT NULL DEFAULT '',
+     learn_en TEXT NOT NULL DEFAULT '', learn_bn TEXT NOT NULL DEFAULT '')`,
+  `CREATE TABLE IF NOT EXISTS job_role_skills (role_slug TEXT NOT NULL, skill_slug TEXT NOT NULL, level INTEGER NOT NULL DEFAULT 3, PRIMARY KEY (role_slug, skill_slug))`,
+  `CREATE TABLE IF NOT EXISTS certifications (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, sort INTEGER NOT NULL DEFAULT 100, status TEXT NOT NULL DEFAULT 'published',
+     kind TEXT NOT NULL DEFAULT 'certification', issuer TEXT NOT NULL DEFAULT '', url TEXT NOT NULL DEFAULT '', stages TEXT NOT NULL DEFAULT '', skill_slugs TEXT NOT NULL DEFAULT '',
+     name_en TEXT NOT NULL DEFAULT '', name_bn TEXT NOT NULL DEFAULT '', overview_en TEXT NOT NULL DEFAULT '', overview_bn TEXT NOT NULL DEFAULT '',
+     eligibility_en TEXT NOT NULL DEFAULT '', eligibility_bn TEXT NOT NULL DEFAULT '', levels_en TEXT NOT NULL DEFAULT '', levels_bn TEXT NOT NULL DEFAULT '',
+     syllabus_en TEXT NOT NULL DEFAULT '', syllabus_bn TEXT NOT NULL DEFAULT '', duration_en TEXT NOT NULL DEFAULT '', duration_bn TEXT NOT NULL DEFAULT '',
+     cost_en TEXT NOT NULL DEFAULT '', cost_bn TEXT NOT NULL DEFAULT '', cost_verified INTEGER NOT NULL DEFAULT 0, cost_checked TEXT NOT NULL DEFAULT '',
+     relevance_en TEXT NOT NULL DEFAULT '', relevance_bn TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')`,
+  `CREATE TABLE IF NOT EXISTS role_certifications (role_slug TEXT NOT NULL, cert_slug TEXT NOT NULL, priority TEXT NOT NULL DEFAULT 'useful', PRIMARY KEY (role_slug, cert_slug))`,
+  `CREATE TABLE IF NOT EXISTS industries (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, sort INTEGER NOT NULL DEFAULT 100, status TEXT NOT NULL DEFAULT 'published',
+     name_en TEXT NOT NULL DEFAULT '', name_bn TEXT NOT NULL DEFAULT '', desc_en TEXT NOT NULL DEFAULT '', desc_bn TEXT NOT NULL DEFAULT '',
+     employers_en TEXT NOT NULL DEFAULT '', employers_bn TEXT NOT NULL DEFAULT '', role_slugs TEXT NOT NULL DEFAULT '')`,
+  `CREATE TABLE IF NOT EXISTS salary_benchmarks (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, country TEXT NOT NULL DEFAULT 'Bangladesh', currency TEXT NOT NULL DEFAULT 'BDT', industry_slug TEXT NOT NULL DEFAULT '',
+     role_slug TEXT NOT NULL, level_slug TEXT NOT NULL DEFAULT '', min_amount INTEGER NOT NULL DEFAULT 0, max_amount INTEGER NOT NULL DEFAULT 0,
+     period TEXT NOT NULL DEFAULT 'month', basis TEXT NOT NULL DEFAULT 'estimate', source TEXT NOT NULL DEFAULT '', source_url TEXT NOT NULL DEFAULT '',
+     updated_on TEXT NOT NULL DEFAULT '', note_en TEXT NOT NULL DEFAULT '', note_bn TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'published')`,
+  `CREATE TABLE IF NOT EXISTS career_questions (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'open', level_slug TEXT NOT NULL DEFAULT '', topic TEXT NOT NULL DEFAULT '',
+     q_en TEXT NOT NULL DEFAULT '', q_bn TEXT NOT NULL DEFAULT '', options_en TEXT NOT NULL DEFAULT '', options_bn TEXT NOT NULL DEFAULT '', correct_index INTEGER NOT NULL DEFAULT 0,
+     answer_en TEXT NOT NULL DEFAULT '', answer_bn TEXT NOT NULL DEFAULT '', sort INTEGER NOT NULL DEFAULT 100, status TEXT NOT NULL DEFAULT 'published')`,
+  `CREATE TABLE IF NOT EXISTS recommendation_rules (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, trigger TEXT NOT NULL, key TEXT NOT NULL DEFAULT '', threshold REAL NOT NULL DEFAULT 0,
+     text_en TEXT NOT NULL DEFAULT '', text_bn TEXT NOT NULL DEFAULT '', link_url TEXT NOT NULL DEFAULT '', link_en TEXT NOT NULL DEFAULT '', link_bn TEXT NOT NULL DEFAULT '',
+     sort INTEGER NOT NULL DEFAULT 100, status TEXT NOT NULL DEFAULT 'published')`,
+  `CREATE TABLE IF NOT EXISTS career_tools (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, grp TEXT NOT NULL DEFAULT 'tools', kind TEXT NOT NULL DEFAULT 'link', icon TEXT NOT NULL DEFAULT 'file',
+     sort INTEGER NOT NULL DEFAULT 100, status TEXT NOT NULL DEFAULT 'published', name_en TEXT NOT NULL DEFAULT '', name_bn TEXT NOT NULL DEFAULT '',
+     desc_en TEXT NOT NULL DEFAULT '', desc_bn TEXT NOT NULL DEFAULT '', items_en TEXT NOT NULL DEFAULT '', items_bn TEXT NOT NULL DEFAULT '', url TEXT NOT NULL DEFAULT '')`,
 ];
 
 // Columns added after the first release. Added only when missing, so upgrades are automatic.
@@ -114,6 +166,13 @@ const COLUMNS = [
   ["items", "section", "TEXT NOT NULL DEFAULT ''"],
   ["courses", "section", "TEXT NOT NULL DEFAULT ''"],
   ["posts", "views", "INTEGER NOT NULL DEFAULT 0"],
+  // v6: blog SEO, tags and featured articles
+  ["posts", "tags", "TEXT NOT NULL DEFAULT ''"],
+  ["posts", "seo_title_en", "TEXT NOT NULL DEFAULT ''"],
+  ["posts", "seo_title_bn", "TEXT NOT NULL DEFAULT ''"],
+  ["posts", "seo_desc_en", "TEXT NOT NULL DEFAULT ''"],
+  ["posts", "seo_desc_bn", "TEXT NOT NULL DEFAULT ''"],
+  ["posts", "featured", "INTEGER NOT NULL DEFAULT 0"],
 ];
 
 // Exams: Knowledge Check (free, no certificate), Professional (free, certificate) and Pro (paid, certificate).

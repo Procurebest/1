@@ -5,8 +5,9 @@ import { whatsapp, WHATSAPP_RE } from "../lib/settings.js";
 import { calcList } from "../lib/calclist.js";
 import { tr } from "../../public/js/calc/defs.js";
 import { all } from "../lib/db.js";
+import { careerOff } from "../lib/career.js";
 
-export const ASSET_V = "10";
+export const ASSET_V = "12";
 const asset = (p) => `${p}?v=${ASSET_V}`;
 export const LIB_TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
 
@@ -21,11 +22,19 @@ async function navItems(c, s) {
       sub: [...exams.map((e) => [`/exams/${e.code}`, c.pick(e.title_en, e.title_bn), e.price ? "" : c.t("nav.free")]), ["/certificates/verify", c.t("footer.verify_cert")]] },
     { href: "/library", label: c.t("nav.library"), sub: [["/library?type=book", c.t("lib.type.book")], ["/library?type=docs", c.L("Docs, CV & templates", "ডক, CV ও টেমপ্লেট")], ["/library?type=excel", c.t("lib.type.excel")], ["/library", c.t("nav.all_library")]] },
     { href: "/courses", label: c.t("nav.courses"), sub: [["/courses?kind=live", c.t("courses.live")], ["/courses?kind=recorded", c.t("courses.recorded")]] },
-    { href: "/negotiation-guru", label: c.t("nav.negotiation"), sub: [["/negotiation-guru#books", c.t("nav.books")], ["/negotiation-guru#articles", c.t("nav.articles")]] },
     { href: "/procurement-ai", label: c.t("nav.ai"), sub: [["/procurement-ai#books", c.t("nav.books")], ["/procurement-ai#articles", c.t("nav.articles")]] },
-    { href: "/blog", label: c.t("nav.blog"), sub: [["/blog", c.t("nav.articles")], ["/career", c.t("nav.career")], ["/glossary", c.t("nav.glossary")]] },
-    { href: "/about", label: c.t("nav.about"), sub: [["/about", c.t("nav.about_us")], ["/about#founder", c.t("nav.founder")], ["/contact", c.t("footer.contact")], ["/help", c.t("footer.help")]] },
+    // Negotiation Guru now lives inside the Blog (articles only); About is in the footer.
+    { href: "/blog", label: c.t("nav.blog"), sub: [["/blog", c.t("nav.articles")], ["/negotiation-guru", c.t("nav.negotiation")], ["/glossary", c.t("nav.glossary")]] },
+    { href: "/career", label: c.L("Career", "ক্যারিয়ার"), sub: careerMenu(c, s) },
   ];
+}
+
+function careerMenu(c, s) {
+  const off = careerOff(s);
+  return [["/career", c.L("Career Hub", "ক্যারিয়ার হাব"), ""], ["/career/roadmap", c.L("Career Roadmap", "ক্যারিয়ার রোডম্যাপ"), "roadmap"], ["/career/job-roles", c.L("Job Roles", "জব রোল"), "job-roles"],
+    ["/career/career-analysis", c.L("Career Analysis", "ক্যারিয়ার অ্যানালাইসিস"), "career-analysis"], ["/career/certifications", c.L("Certifications", "সার্টিফিকেশন"), "certifications"],
+    ["/career/interview-preparation", c.L("Interview Preparation", "ইন্টারভিউ প্রস্তুতি"), "interview-preparation"], ["/career/blog", c.L("Career Blog", "ক্যারিয়ার ব্লগ"), "blog"]]
+    .filter(([, , k]) => !k || !off.has(k)).map(([p, l]) => [p, l]);
 }
 
 function langSwitchUrl(c, lang) {
@@ -83,6 +92,7 @@ export async function layout(c, { title, description, body, pageType = "page", n
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="${asset("/css/app.css")}">
   <link rel="stylesheet" href="${asset("/css/extra.css")}">
+  <link rel="stylesheet" href="${asset("/css/career.css")}">
   ${pageType === "home" ? html`<script type="application/ld+json">${jsonScript({ "@context": "https://schema.org", "@type": "WebSite", name: "ProcureBest", url: c.siteUrl, inLanguage: lang })}</script>` : ""}
   ${head}
 </head>
@@ -93,6 +103,7 @@ export async function layout(c, { title, description, body, pageType = "page", n
     <a class="brand" href="${c.p("/")}" aria-label="ProcureBest — ${c.t("nav.home")}"><img src="/img/logo.svg" alt="ProcureBest" width="172" height="30"></a>
     <ul class="nav-links">${nav.map(navLink)}</ul>
     <div class="nav-tools">
+      ${socialRow(c, s, "nav")}
       <div class="lang-switch" role="group" aria-label="${c.t("nav.language")}">
         <a href="${langSwitchUrl(c, "en")}" class="${lang === "en" ? "on" : ""}" hreflang="en" lang="en">EN</a>
         <a href="${langSwitchUrl(c, "bn")}" class="${lang === "bn" ? "on" : ""}" hreflang="bn" lang="bn">বাংলা</a>
@@ -107,6 +118,7 @@ export async function layout(c, { title, description, body, pageType = "page", n
   ${nav.map((item) => item.sub ? html`<details class="m-group"><summary>${item.label}${item.free ? html` ${freeBadge}` : ""}</summary>
     <div>${item.sub.map(([p, l]) => html`<a href="${c.p(p)}">${l}</a>`)}</div></details>` : html`<a href="${c.p(item.href)}">${item.label}</a>`)}
   <a href="${c.p("/my")}">${c.t("nav.my")}</a>
+  ${socialRow(c, s, "mobile")}
   <div class="lang-switch" role="group" aria-label="${c.t("nav.language")}">
     <a href="${langSwitchUrl(c, "en")}" class="${lang === "en" ? "on" : ""}" lang="en">English</a>
     <a href="${langSwitchUrl(c, "bn")}" class="${lang === "bn" ? "on" : ""}" lang="bn">বাংলা</a>
@@ -142,7 +154,7 @@ ${body}
           <li><a href="${c.p("/negotiation-guru")}">${c.t("nav.negotiation")}</a></li>
           <li><a href="${c.p("/procurement-ai")}">${c.t("nav.ai")}</a></li>
           <li><a href="${c.p("/glossary")}">${c.t("nav.glossary")}</a></li>
-          <li><a href="${c.p("/career")}">${c.t("nav.career")}</a></li>
+          <li><a href="${c.p("/career")}">${c.L("Career Hub", "ক্যারিয়ার হাব")}</a></li>
         </ul>
       </div>
       <div>
@@ -172,7 +184,7 @@ ${noindex ? "" : welcomePopup(c, s)}
 <script type="application/json" id="pb-config">${jsonScript(gateCfg)}</script>
 <script src="${asset("/js/app.js")}" defer></script>
 <script src="${asset("/js/extras.js")}" defer></script>
-${scripts.map((src) => src.endsWith(".mjs") || src.includes("/calc/") ? html`<script type="module" src="${asset(src)}"></script>` : html`<script src="${asset(src)}" defer></script>`)}
+${scripts.map((src) => src.endsWith(".mjs") || src.includes("/calc/") || src.includes("/career/") ? html`<script type="module" src="${asset(src)}"></script>` : html`<script src="${asset(src)}" defer></script>`)}
 </body>
 </html>`;
 }
@@ -286,11 +298,19 @@ const SOCIALS = [
   ["x", "social_x", "X (Twitter)", "fa-x-twitter"],
   ["whatsapp", "whatsapp_url", "WhatsApp", "fa-whatsapp"],
 ];
-export function socialRow(c, s) {
+// Brand icons drawn inline (no external icon font needed).
+const SOCIAL_SVG = {
+  youtube: '<path d="M9 7.3v9.4l7.6-4.7z"/>',
+  facebook: '<path d="M13.4 21v-7.6h2.6l.4-3h-3V8.5c0-.9.3-1.5 1.5-1.5h1.6V4.3c-.3 0-1.2-.1-2.3-.1-2.3 0-3.8 1.4-3.8 3.9v2.3H7.8v3h2.6V21z"/>',
+  linkedin: '<path d="M7.2 9H4.3v10.5h2.9zM5.8 4.4a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4zM19.7 13.5c0-3-1.6-4.7-4-4.7-1.4 0-2.3.7-2.7 1.4V9h-2.8v10.5h2.9v-5.3c0-1.4.5-2.4 1.9-2.4s1.8 1 1.8 2.5v5.2h2.9z"/>',
+  x: '<path d="M16.9 4h2.6l-5.7 6.5 6.7 8.9h-5.3l-4.1-5.4-4.7 5.4H3.8l6.1-7L3.5 4h5.4l3.7 4.9zm-.9 13.8h1.4L8.1 5.5H6.6z"/>',
+  whatsapp: '<path d="M12 3.6a8.3 8.3 0 0 0-7.1 12.6l-1.2 4.2 4.3-1.1A8.3 8.3 0 1 0 12 3.6zm4.6 11.7c-.2.6-1.1 1.1-1.6 1.2-.4.1-.9.1-1.5-.1-3-1-4.8-3.8-5-4-.1-.2-1.1-1.5-1.1-2.8s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.3 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l1.8.9c.3.1.4.2.5.3.1.2.1.7-.1 1.3z"/>',
+};
+export function socialRow(c, s, where = "") {
   const list = SOCIALS.map(([key, k, name, fa]) => [key, String(s[k] || "").trim(), name, fa])
     .filter(([key, url]) => (key === "whatsapp" ? s.whatsapp_enabled === "1" && WHATSAPP_RE.test(url) : /^https:\/\/\S+$/.test(url)));
   if (!list.length) return "";
-  return html`<ul class="social-row" aria-label="${c.L("ProcureBest on social media", "সোশ্যাল মিডিয়ায় ProcureBest")}">${list.map(([key, url, name, fa]) => html`<li><a class="social-ic s-${key}" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${name}" title="${name}"><i class="fa-brands ${fa}" aria-hidden="true"></i></a></li>`)}</ul>`;
+  return html`<ul class="social-row${where ? " social-" + where : ""}" aria-label="${c.L("ProcureBest on social media", "সোশ্যাল মিডিয়ায় ProcureBest")}">${list.map(([key, url, name, fa]) => html`<li><a class="social-ic s-${key}" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${name}" title="${name}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">${raw(SOCIAL_SVG[key])}</svg></a></li>`)}</ul>`;
 }
 export const FA_CSS = raw(`<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/fontawesome.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/brands.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">`);
