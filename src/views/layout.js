@@ -7,7 +7,7 @@ import { tr } from "../../public/js/calc/defs.js";
 import { all } from "../lib/db.js";
 import { careerOff } from "../lib/career.js";
 
-export const ASSET_V = "14";
+export const ASSET_V = "15";
 const asset = (p) => `${p}?v=${ASSET_V}`;
 export const LIB_TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
 

@@ -62,44 +62,36 @@ function videoBlock(c, s, cls) {
     ${s.skate_poster_id ? raw(`poster="/media/${s.skate_poster_id}"`) : ""} data-src="/media/${s.skate_video_id}"></video></div>`;
 }
 
-// Career Hub hero: the skater jumps up the five career levels.
-export function skateHub(c, s, levels) {
-  if (s.skate_enabled === "0") return "";
-  if (s.skate_video_id) return videoBlock(c, s, "skate-hub-video");
-  const names = (levels.length ? levels : [{}, {}, {}, {}, {}]).slice(0, 5).map((l, i) => (l.title_en ? c.pick(l.title_en, l.title_bn) : c.L(["Entry", "Mid", "Manager", "Senior", "Executive"][i], ["এন্ট্রি", "মিড", "ম্যানেজার", "সিনিয়র", "এক্সিকিউটিভ"][i])));
-  const n = names.length;
-  const W = 960, stepW = 150, gap = (W - 60 - n * stepW) / Math.max(1, n - 1);
-  const steps = names.map((name, i) => ({ x: 30 + i * (stepW + gap), y: 262 - i * 44, name }));
-  const segs = steps.map((p) => ({ x1: p.x + 28, x2: p.x + 112, y: p.y }));
-  const k = keyframes("skh", segs, 46);
-  return html`<div class="skate-scene skate-hub skh" aria-hidden="true"><style>${raw(k.css)}</style>
-  <svg viewBox="0 0 ${W} 300" fill="none" xmlns="http://www.w3.org/2000/svg">
-    ${steps.map((p, i) => html`<path d="M${p.x} ${p.y} H${p.x + stepW}" class="sk-step"/>
-      ${i < n - 1 ? html`<path d="M${p.x + stepW} ${p.y} C ${p.x + stepW + gap * 0.6} ${p.y}, ${p.x + stepW + gap * 0.4} ${steps[i + 1].y}, ${steps[i + 1].x} ${steps[i + 1].y}" class="ha-rail"/>` : ""}
-      <text x="${p.x + stepW / 2}" y="${p.y + 24}" text-anchor="middle" class="sk-label">${p.name}</text>`)}
-    <g transform="translate(${steps[n - 1].x + stepW - 18} ${steps[n - 1].y})"><path d="M0 0 V-44" class="sk-line"/><path d="M0 -44 L22 -37 L0 -30 Z" class="sk-fill"/></g>
-    <g class="sk" transform="translate(${k.start.x1} ${k.start.y})">${raw(SKATER)}</g>
-  </svg></div>`;
-}
-
-// Home page: a featured career banner placed right under the headline (above the main buttons).
-// The skater clears three obstacles (skills, certification, experience) on the way to the next role,
-// and the banner's call-to-action leads into the Career Hub.
-export function skateHome(c, s) {
-  if (s.skate_enabled === "0" || s.skate_home === "0") return "";
-  const cta = html`<span class="skate-cta">${c.L("Ready for your next career jump? Open the Career Hub", "পরের ক্যারিয়ার জাম্পের জন্য প্রস্তুত? ক্যারিয়ার হাব খুলুন")} <span aria-hidden="true">→</span></span>`;
-  if (s.skate_video_id) return html`<a class="skate-home-link featured" href="${c.p("/career")}">${videoBlock(c, s, "skate-home-video")}${cta}</a>`;
+// One scene for the home page and the Career Hub: the licensed video when one is uploaded,
+// otherwise the built-in drawing — the skater clears three obstacles (skills, certification,
+// experience) on the way to the next role. It has no frame, so it sits directly on the page.
+function skateArt(c, s) {
+  if (s.skate_video_id) return videoBlock(c, s, "skate-blend");
   const y = 92;
   const obs = [[250, c.L("Skills", "দক্ষতা")], [490, c.L("Certification", "সার্টিফিকেশন")], [730, c.L("Experience", "অভিজ্ঞতা")]];
   const segs = [{ x1: 40, x2: 196 }, { x1: 306, x2: 436 }, { x1: 546, x2: 676 }, { x1: 786, x2: 880 }].map((x) => ({ ...x, y }));
   const k = keyframes("sko", segs, 52);
-  return html`<a class="skate-home-link featured" href="${c.p("/career")}" aria-label="${c.L("Open the Career Hub", "ক্যারিয়ার হাব খুলুন")}">
-  <div class="skate-scene skate-home sko" aria-hidden="true"><style>${raw(k.css)}</style>
-  <svg viewBox="0 0 980 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+  return html`<div class="skate-scene skate-home sko" aria-hidden="true"><style>${raw(k.css)}</style>
+  <svg viewBox="0 -46 980 176" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M20 ${y} H960" class="ha-rail"/>
     ${obs.map(([x, label]) => html`<g><rect x="${x - 18}" y="${y - 16}" width="36" height="16" rx="4" class="sk-block"/><text x="${x}" y="${y + 22}" text-anchor="middle" class="sk-label">${label}</text></g>`)}
     <g transform="translate(925 ${y})"><path d="M0 0 V-46" class="sk-line"/><path d="M0 -46 L22 -39 L0 -32 Z" class="sk-fill"/><text x="0" y="22" text-anchor="middle" class="sk-label sk-strong">${c.L("Next role", "পরের পদ")}</text></g>
     <g class="sk" transform="translate(${k.start.x1} ${y})">${raw(SKATER)}</g>
-  </svg></div>
-  ${cta}</a>`;
+  </svg></div>`;
+}
+
+// Career Hub hero: the same animation as on the home page.
+export function skateHub(c, s) {
+  if (s.skate_enabled === "0") return "";
+  return html`<div class="skate-hub">${skateArt(c, s)}</div>`;
+}
+
+// Home page, right under the headline: the animation, then the bold question, then the
+// "Open the Career Hub" button. The whole block is one link into the Career Hub.
+export function skateHome(c, s) {
+  if (s.skate_enabled === "0" || s.skate_home === "0") return "";
+  return html`<a class="skate-home-link" href="${c.p("/career")}">
+  ${skateArt(c, s)}
+  <span class="skate-q">${c.L("Ready for your next career jump?", "পরের ক্যারিয়ার জাম্পের জন্য প্রস্তুত?")}</span>
+  <span class="skate-cta">${c.L("Open the Career Hub", "ক্যারিয়ার হাব খুলুন")} <span aria-hidden="true">→</span></span></a>`;
 }

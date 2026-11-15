@@ -1,5 +1,5 @@
 // Career Hub browser code: roadmap tree, career analysis wizard, skills assessment, checklists,
-// certification comparison, interview practice and the licensed skateboard video (when uploaded).
+// certification comparison, interview practice.
 import { analyze, assess, requiredSkills } from "./engine.js";
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -13,14 +13,6 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", 
 const dg = (v) => (bn ? String(v).replace(/\d/g, (d) => "০১২৩৪৫৬৭৮৯"[d]) : String(v));
 const store = { get(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } } };
 const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-// ---------------------------------------------------------------- licensed skateboard video (lazy, muted, no autoplay when reduced motion)
-$$("[data-skate-video]").forEach((v) => {
-  if (reduced) { v.removeAttribute("loop"); return; }
-  const start = () => { if (!v.src) v.src = v.dataset.src; v.play().catch(() => {}); };
-  if ("IntersectionObserver" in window) new IntersectionObserver((es) => es.forEach((e) => (e.isIntersecting ? start() : v.pause())), { rootMargin: "100px" }).observe(v);
-  else start();
-});
 
 // ---------------------------------------------------------------- roadmap tree
 const tree = $("[data-tree]");
