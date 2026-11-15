@@ -82,16 +82,18 @@ export function skateHub(c, s, levels) {
   </svg></div>`;
 }
 
-// Home page: a compact strip under the existing hero animation — the skater clears three obstacles
-// (skills, certification, experience) on the way to the next role, and links to the Career Hub.
+// Home page: a featured career banner placed right under the headline (above the main buttons).
+// The skater clears three obstacles (skills, certification, experience) on the way to the next role,
+// and the banner's call-to-action leads into the Career Hub.
 export function skateHome(c, s) {
   if (s.skate_enabled === "0" || s.skate_home === "0") return "";
-  if (s.skate_video_id) return html`<a class="skate-home-link" href="${c.p("/career")}">${videoBlock(c, s, "skate-home-video")}<span>${c.L("Ready for your next career jump? Open the Career Hub", "পরের ক্যারিয়ার জাম্পের জন্য প্রস্তুত? ক্যারিয়ার হাব খুলুন")} →</span></a>`;
+  const cta = html`<span class="skate-cta">${c.L("Ready for your next career jump? Open the Career Hub", "পরের ক্যারিয়ার জাম্পের জন্য প্রস্তুত? ক্যারিয়ার হাব খুলুন")} <span aria-hidden="true">→</span></span>`;
+  if (s.skate_video_id) return html`<a class="skate-home-link featured" href="${c.p("/career")}">${videoBlock(c, s, "skate-home-video")}${cta}</a>`;
   const y = 92;
   const obs = [[250, c.L("Skills", "দক্ষতা")], [490, c.L("Certification", "সার্টিফিকেশন")], [730, c.L("Experience", "অভিজ্ঞতা")]];
   const segs = [{ x1: 40, x2: 196 }, { x1: 306, x2: 436 }, { x1: 546, x2: 676 }, { x1: 786, x2: 880 }].map((x) => ({ ...x, y }));
   const k = keyframes("sko", segs, 52);
-  return html`<a class="skate-home-link" href="${c.p("/career")}" aria-label="${c.L("Open the Career Hub", "ক্যারিয়ার হাব খুলুন")}">
+  return html`<a class="skate-home-link featured" href="${c.p("/career")}" aria-label="${c.L("Open the Career Hub", "ক্যারিয়ার হাব খুলুন")}">
   <div class="skate-scene skate-home sko" aria-hidden="true"><style>${raw(k.css)}</style>
   <svg viewBox="0 0 980 130" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M20 ${y} H960" class="ha-rail"/>
@@ -99,5 +101,5 @@ export function skateHome(c, s) {
     <g transform="translate(925 ${y})"><path d="M0 0 V-46" class="sk-line"/><path d="M0 -46 L22 -39 L0 -32 Z" class="sk-fill"/><text x="0" y="22" text-anchor="middle" class="sk-label sk-strong">${c.L("Next role", "পরের পদ")}</text></g>
     <g class="sk" transform="translate(${k.start.x1} ${y})">${raw(SKATER)}</g>
   </svg></div>
-  <span>${c.L("Ready for your next career jump? Open the Career Hub", "পরের ক্যারিয়ার জাম্পের জন্য প্রস্তুত? ক্যারিয়ার হাব খুলুন")} →</span></a>`;
+  ${cta}</a>`;
 }

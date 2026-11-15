@@ -7,7 +7,7 @@ import { tr } from "../../public/js/calc/defs.js";
 import { all } from "../lib/db.js";
 import { careerOff } from "../lib/career.js";
 
-export const ASSET_V = "12";
+export const ASSET_V = "14";
 const asset = (p) => `${p}?v=${ASSET_V}`;
 export const LIB_TYPES = ["book", "pdf", "excel", "doc", "cv", "other"];
 
@@ -17,6 +17,8 @@ async function navItems(c, s) {
   try { exams = await all(c.env, "SELECT code, title_en, title_bn, price FROM exam_levels WHERE published=1 ORDER BY sort"); } catch { exams = []; }
   const calcs = calcList(s);
   return [
+    // Career is the primary item of a career-focused site: first in the menu, bold, with a gentle jump.
+    { href: "/career", label: c.L("Career", "ক্যারিয়ার"), sub: careerMenu(c, s), highlight: true },
     { href: "/calculators", label: c.t("nav.calculators"), sub: [...calcs.map((k) => [`/calculators/${k.slug}`, tr(k.title, c.lang)]), ["/calculators", c.t("nav.all_calculators")]] },
     { href: "/exams", label: c.t("nav.exams"), free: s.nav_free_badge !== "0" && exams.some((e) => !e.price),
       sub: [...exams.map((e) => [`/exams/${e.code}`, c.pick(e.title_en, e.title_bn), e.price ? "" : c.t("nav.free")]), ["/certificates/verify", c.t("footer.verify_cert")]] },
@@ -25,7 +27,6 @@ async function navItems(c, s) {
     { href: "/procurement-ai", label: c.t("nav.ai"), sub: [["/procurement-ai#books", c.t("nav.books")], ["/procurement-ai#articles", c.t("nav.articles")]] },
     // Negotiation Guru now lives inside the Blog (articles only); About is in the footer.
     { href: "/blog", label: c.t("nav.blog"), sub: [["/blog", c.t("nav.articles")], ["/negotiation-guru", c.t("nav.negotiation")], ["/glossary", c.t("nav.glossary")]] },
-    { href: "/career", label: c.L("Career", "ক্যারিয়ার"), sub: careerMenu(c, s) },
   ];
 }
 
@@ -58,7 +59,7 @@ export async function layout(c, { title, description, body, pageType = "page", n
   const nav = await navItems(c, s);
   const isOn = (item) => { const href = c.p(item.href); return here === href || here.startsWith(href + "/") || (item.sub || []).some(([p]) => !p.includes("?") && !p.includes("#") && here.startsWith(c.p(p))); };
   const freeBadge = html`<span class="free-blink">${c.t("nav.free")}</span>`;
-  const navLink = (item, i) => html`<li class="${item.sub ? "has-sub" : ""}">
+  const navLink = (item, i) => html`<li class="${[item.sub ? "has-sub" : "", item.highlight ? "nav-career" : ""].join(" ").trim()}">
     <a href="${c.p(item.href)}" ${isOn(item) ? raw('aria-current="page"') : ""} ${item.sub ? raw(`aria-haspopup="true" aria-controls="sub-${i}"`) : ""}>${item.label}${item.free ? html` ${freeBadge}` : ""}${item.sub ? html`<svg class="caret" width="9" height="6" viewBox="0 0 9 6" aria-hidden="true"><path d="M1 1l3.5 3.5L8 1" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>` : ""}</a>
     ${item.sub ? html`<div class="sub" id="sub-${i}"><ul>${item.sub.map(([p, l, badge]) => html`<li><a href="${c.p(p)}">${l}${badge ? html` <span class="tag ok free-tag">${badge}</span>` : ""}</a></li>`)}</ul></div>` : ""}
   </li>`;
