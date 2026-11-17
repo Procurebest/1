@@ -1,5 +1,5 @@
-const CACHE = "procurebest-app-shell-v1";
-const SHELL = ["/app/", "/app/manifest.webmanifest", "/app/app.css", "/app/app.js", "/img/mark.svg", "/img/icon-512.png"];
+const CACHE = "procurebest-app-shell-v2";
+const SHELL = ["/app/", "/app/career.html", "/app/manifest.webmanifest", "/app/app.css", "/app/app.js", "/img/mark.svg", "/img/icon-512.png"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
   self.skipWaiting();
