@@ -30,6 +30,23 @@
     }
   ],
 
+  // Preview resources are isolated from Production. Never point these at live data.
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "procurebest-preview",
+        "database_id": "8d9d50b6-fba0-469c-a605-dfcef33220b6"
+      }
+    ],
+    "kv_namespaces": [
+      {
+        "binding": "FILES_KV",
+        "id": "f67787d413654bb28f9fa33f153049dc"
+      }
+    ]
+  },
+
   // Keep variables set in the Cloudflare dashboard when deploying from GitHub.
   "keep_vars": true,
 
