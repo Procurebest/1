@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111111">
+  <meta name="description" content="ProcureBest — procurement career guidance, practical calculators and learning resources.">
+  <title>ProcureBest App</title>
+  <link rel="manifest" href="/app/manifest.webmanifest">
+  <link rel="icon" href="/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/app/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/app/" aria-label="ProcureBest App home">
+        <img src="/img/mark.svg" alt="" width="34" height="34">
+        <span>ProcureBest</span>
+      </a>
+      <button class="language" id="languageToggle" type="button" aria-label="Switch language">বাংলা</button>
+    </header>
+    <main>
+      <section class="welcome">
+        <p class="eyebrow" data-i18n="eyebrow">YOUR PROCUREMENT CAREER COMPANION</p>
+        <h1 data-i18n="headline">Build your procurement career with confidence.</h1>
+        <p class="intro" data-i18n="intro">Practical career guidance, procurement calculators and learning resources — all in one place.</p>
+        <a class="primary-link" href="/en/career" id="careerCta" data-i18n="careerCta">Explore Career Hub <span aria-hidden="true">→</span></a>
+      </section>
+
+      <section class="section">
+        <div class="section-heading"><div><p class="eyebrow" data-i18n="careerEyebrow">PLAN YOUR NEXT STEP</p><h2 data-i18n="careerTitle">Career Hub</h2></div><a href="/en/career" data-i18n="viewAll">View all →</a></div>
+        <div class="feature-grid">
+          <a class="feature-card" href="/app/career.html"><span class="card-icon">↗</span><strong data-i18n="roadmap">Career Roadmap</strong><small data-i18n="roadmapSub">Explore roles and career paths</small></a>
+          <a class="feature-card" href="/en/career/career-analysis"><span class="card-icon">◎</span><strong data-i18n="careerCalc">Career Analysis</strong><small data-i18n="careerCalcSub">Plan your development journey</small></a>
+          <a class="feature-card" href="/en/career/salary-benchmark"><span class="card-icon">৳</span><strong data-i18n="salary">Salary Benchmark</strong><small data-i18n="salarySub">Explore salary progression</small></a>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading"><div><p class="eyebrow" data-i18n="workSmarter">WORK SMARTER</p><h2 data-i18n="toolsTitle">Procurement Tools</h2></div><a href="/en/calculators" data-i18n="viewAll">View all →</a></div>
+        <div class="feature-grid">
+          <a class="feature-card" href="/en/calculators/total-cost-of-ownership"><span class="card-icon">▦</span><strong>TCO Calculator</strong><small data-i18n="tcoSub">Compare total ownership costs</small></a>
+          <a class="feature-card" href="/en/calculators/shipping-import-cost"><span class="card-icon">⇢</span><strong data-i18n="landing">Landing Cost</strong><small data-i18n="landingSub">Estimate your import costs</small></a>
+        </div>
+      </section>
+
+      <section class="learning-panel">
+        <div><p class="eyebrow" data-i18n="keepLearning">KEEP LEARNING</p><h2 data-i18n="learnTitle">Grow your procurement knowledge.</h2><p data-i18n="learnSub">Read practical articles, guides and industry insights in Bangla and English.</p></div>
+        <a class="secondary-link" href="/en/blog" data-i18n="readBlogs">Explore Articles →</a>
+      </section>
+      <p class="source-note" data-i18n="sourceNote">Your App uses ProcureBest website content. New articles and tools can be updated without maintaining a separate content library.</p>
+    </main>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <a class="active" href="/app/"><span>⌂</span><small data-i18n="home">Home</small></a>
+      <a href="/app/career.html"><span>↗</span><small data-i18n="career">Career</small></a>
+      <a href="/en/calculators"><span>▦</span><small data-i18n="tools">Tools</small></a>
+      <a href="/en/blog"><span>▤</span><small data-i18n="learn">Learn</small></a>
+      <a href="https://procurebest.com/en/"><span>⋯</span><small data-i18n="website">Website</small></a>
+    </nav>
+  </div>
+  <div class="install-banner" id="installBanner" hidden><span data-i18n="installText">Install ProcureBest on your phone for quick access.</span><button id="installButton" type="button" data-i18n="install">Install App</button><button id="dismissInstall" class="dismiss" type="button" aria-label="Dismiss">×</button></div>
+  <script src="/app/app.js" defer></script>
+</body>
+</html>
