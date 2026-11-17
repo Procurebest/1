@@ -1,0 +1,17 @@
+{
+  "id": "/app/",
+  "name": "ProcureBest — Procurement Career & Learning",
+  "short_name": "ProcureBest",
+  "description": "Procurement career guidance, practical calculators and learning resources.",
+  "lang": "en",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#111111",
+  "icons": [
+    { "src": "/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
