@@ -726,52 +726,6 @@ console.log("\nCareer Hub");
       for (const l of ["en", "bn"]) assert.equal((await visitor.req("GET", `/${l}/career${p}`)).status, 200, `/${l}/career${p}`);
     }
   });
-  await test("career progression strip: installs, edits, hides, translates and can be switched off", async () => {
-    const seed = () => admin.req("POST", "/admin/api/seed/career4", { json: {}, headers: { "X-CSRF": csrf } });
-    assert.equal((await seed()).status, 200);
-    assert.equal((await seed()).status, 200);
-    assert.equal(await env.DB.prepare("SELECT COUNT(*) AS n FROM career_stages").first("n"), 7);
-    const home = await visitor.req("GET", "/en/career");
-    assert.match(home.text, /data-pj/);
-    assert.match(home.text, /progression\.js/);
-    assert.ok(home.text.indexOf("pj-section") < home.text.indexOf("level-preview"), "strip sits before the roadmap preview");
-    // edit one stage from the admin panel
-    const id = await env.DB.prepare("SELECT id FROM career_stages WHERE slug='manager-stage'").first("id");
-    const edit = await admin.req("GET", `/admin/career/stages/${id}`);
-    const save = await admin.req("POST", `/admin/career/stages/${id}`, { form: { _csrf: formCsrf(edit.text), slug: "manager-stage", title_en: "Manager", title_bn: "ম্যানেজার",
-      years_en: "8–12 years", years_bn: "৮–১২ বছর", desc_en: "Edited in admin", desc_bn: "অ্যাডমিন থেকে বদলানো", sort: "50", status: "published" } });
-    assert.equal(save.status, 303);
-    assert.match((await visitor.req("GET", "/en/career")).text, /Edited in admin/);
-    // hide it: it leaves the strip, the others stay
-    await admin.req("POST", `/admin/career/stages/${id}`, { form: { _csrf: formCsrf(edit.text), slug: "manager-stage", title_en: "Manager", title_bn: "ম্যানেজার",
-      years_en: "8–12 years", years_bn: "৮–১২ বছর", desc_en: "Edited in admin", desc_bn: "অ্যাডমিন থেকে বদলানো", sort: "50", status: "draft" } });
-    assert.doesNotMatch((await visitor.req("GET", "/en/career")).text, /Edited in admin/);
-    assert.match((await visitor.req("GET", "/en/career")).text, /Entry Level/);
-    // Bengali page
-    assert.match((await visitor.req("GET", "/bn/career")).text, /ক্যারিয়ার অগ্রগতি/);
-    // switched off in Hub settings: the strip disappears and the rest of the home page stays
-    const pg = await admin.req("GET", "/admin/career");
-    const sections = ["journey", "progression", "roadmap", "calculator", "articles", "roles", "certifications", "tools", "interview", "resources"];
-    const hub = (on) => ({ _csrf: formCsrf(pg.text), career_weights: "60,25,15",
-      ...Object.fromEntries(sections.flatMap((k, i) => [["sec_pos_" + k, String((i + 1) * 10)], ...(on.includes(k) ? [["sec_on_" + k, "1"]] : [])])) });
-    assert.equal((await admin.req("POST", "/admin/career", { form: hub(sections.filter((k) => k !== "progression")) })).status, 303);
-    const off = (await visitor.req("GET", "/en/career")).text;
-    assert.doesNotMatch(off, /pj-section/);
-    assert.match(off, /level-preview/);
-    assert.equal((await admin.req("POST", "/admin/career", { form: hub(sections) })).status, 303);
-    assert.match((await visitor.req("GET", "/en/career")).text, /pj-section/);
-    // optional strip on the main home page: it replaces the skateboard block there, and the Career Hub keeps its own
-    const mainSetting = (v) => admin.req("POST", "/admin/career", { form: { ...hub(sections), progress_home: v } });
-    assert.equal((await mainSetting("1")).status, 303);
-    const mainOn = (await visitor.req("GET", "/en/")).text;
-    assert.match(mainOn, /data-pj/);
-    assert.doesNotMatch(mainOn, /skate-home-link/);
-    assert.match((await visitor.req("GET", "/en/career")).text, /skate-hub|skate-scene/);
-    assert.equal((await mainSetting("0")).status, 303);
-    const mainOff = (await visitor.req("GET", "/en/")).text;
-    assert.doesNotMatch(mainOff, /data-pj/);
-    assert.match(mainOff, /skate-home-link/);
-  });
   await test("old career article addresses redirect to the Career Blog", async () => {
     const r = await visitor.req("GET", "/en/career/procurement-interview-preparation");
     assert.equal(r.status, 301);

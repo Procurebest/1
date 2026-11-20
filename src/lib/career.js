@@ -6,20 +6,14 @@ import * as SEED from "../seed/career-hub.js";
 // Feature keys (Admin → Career Management → Hub settings can switch each off).
 export const CAREER_FEATURES = ["blog", "roadmap", "job-roles", "career-analysis", "skills-assessment", "certifications", "tools", "cv-linkedin", "interview-preparation", "salary-benchmark", "opportunities"];
 // Sections of the Career Home page, in display order. A leading "-" hides a section.
-export const HOME_SECTIONS = ["journey", "progression", "roadmap", "calculator", "articles", "roles", "certifications", "tools", "interview", "resources"];
+export const HOME_SECTIONS = ["journey", "roadmap", "calculator", "articles", "roles", "certifications", "tools", "interview", "resources"];
 
 export const careerOff = (s) => new Set(String(s.career_off || "").split(",").map((x) => x.trim()).filter(Boolean));
 export function homeOrder(s) {
   const list = String(s.career_sections || "").split(",").map((x) => x.trim()).filter(Boolean);
-  const key = (x) => x.replace(/^-/, "");
-  for (const k of HOME_SECTIONS) {
-    if (list.some((x) => key(x) === k)) continue;
-    // A section added after the first release goes right after the one before it in HOME_SECTIONS,
-    // so an existing site keeps its order and the new section does not drop to the bottom.
-    const prev = HOME_SECTIONS[HOME_SECTIONS.indexOf(k) - 1];
-    list.splice(prev ? list.findIndex((x) => key(x) === prev) + 1 : 0, 0, k);
-  }
-  return list.filter((x) => HOME_SECTIONS.includes(key(x)));
+  const seen = new Set(list.map((x) => x.replace(/^-/, "")));
+  for (const k of HOME_SECTIONS) if (!seen.has(k)) list.push(k);
+  return list.filter((x) => HOME_SECTIONS.includes(x.replace(/^-/, "")));
 }
 
 export const TRACKS = {
@@ -66,7 +60,7 @@ export async function careerData(c, full = true) {
 }
 
 // ------------------------------------------------------------------ starter data
-export const CAREER_STEPS = ["career1", "career2", "career3", "career4"];
+export const CAREER_STEPS = ["career1", "career2", "career3"];
 function multi(env, sql, cols, rows) {
   const per = Math.max(1, Math.floor(99 / cols.length));
   const out = [];
@@ -112,8 +106,6 @@ export async function installCareerStep(env, step) {
     const day = 86400000;
     st.push(...multi(env, "INSERT OR IGNORE INTO posts", ["section", "slug", "category", "title_en", "title_bn", "summary_en", "summary_bn", "body_en", "body_bn", "author", "refs_json", "status", "published_at", "updated_at", "featured"],
       SEED.ARTICLES.map((a, i) => ["career", a.slug, a.category, a.en.title, a.bn.title, a.en.summary, a.bn.summary, a.en.body, a.bn.body, "ProcureBest Editorial", "[]", "published", new Date(Date.now() - (1 + i) * day).toISOString().slice(0, 10), now, 1])));
-  } else if (step === "career4") {
-    st.push(...multi(env, "INSERT OR IGNORE INTO career_stages", ["slug", "title_en", "title_bn", "years_en", "years_bn", "desc_en", "desc_bn", "sort"], SEED.STAGES.map((x, i) => [...x, (i + 1) * 10])));
   } else throw new Error("Unknown step");
   if (st.length) await env.DB.batch(st);
   return { step, statements: st.length };
@@ -123,6 +115,6 @@ export async function careerStatus(env) {
   const r = await one(env, `SELECT (SELECT COUNT(*) FROM career_levels) AS levels, (SELECT COUNT(*) FROM job_roles) AS roles, (SELECT COUNT(*) FROM skills) AS skills,
     (SELECT COUNT(*) FROM certifications) AS certs, (SELECT COUNT(*) FROM career_questions) AS questions, (SELECT COUNT(*) FROM salary_benchmarks) AS salaries,
     (SELECT COUNT(*) FROM industries) AS industries, (SELECT COUNT(*) FROM career_tools) AS tools, (SELECT COUNT(*) FROM recommendation_rules) AS rules,
-    (SELECT COUNT(*) FROM posts WHERE section='career') AS articles, (SELECT COUNT(*) FROM career_stages) AS stages`);
+    (SELECT COUNT(*) FROM posts WHERE section='career') AS articles`);
   return r || {};
 }

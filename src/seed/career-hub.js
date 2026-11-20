@@ -681,29 +681,3 @@ Compare options with the **Certification Comparison Tool** in Career Tools.` },
 
 ক্যারিয়ার টুলসের **সার্টিফিকেশন তুলনা টুল** দিয়ে বিকল্পগুলো তুলনা করুন।` } },
 ];
-
-// Career progression strip on the Career Home (Admin → Career Management → Progression stages).
-// [slug, title_en, title_bn, years_en, years_bn, desc_en, desc_bn]. Bengali text is a draft: review before publishing.
-export const STAGES = [
-  ["entry-level", "Entry Level", "এন্ট্রি লেভেল", "0–2 years", "০–২ বছর",
-    "Build your foundation in purchasing, sourcing, documentation and supplier coordination.",
-    "ক্রয়, সোর্সিং, ডকুমেন্টেশন ও সাপ্লায়ার সমন্বয়ে আপনার ভিত্তি গড়ে তুলুন।"],
-  ["officer-executive", "Officer / Executive", "অফিসার / এক্সিকিউটিভ", "1–4 years", "১–৪ বছর",
-    "Manage day-to-day procurement operations, RFQs, quotation comparisons, purchase orders and supplier follow-up.",
-    "দৈনন্দিন প্রকিউরমেন্ট কার্যক্রম, আরএফকিউ, কোটেশন তুলনা, পার্চেজ অর্ডার ও সাপ্লায়ার ফলো-আপ পরিচালনা করুন।"],
-  ["senior-officer", "Senior Executive / Officer", "সিনিয়র এক্সিকিউটিভ / অফিসার", "3–6 years", "৩–৬ বছর",
-    "Handle complex sourcing, negotiation, vendor performance and cross-functional coordination.",
-    "জটিল সোর্সিং, দর-কষাকষি, ভেন্ডর পারফরম্যান্স ও আন্তঃবিভাগীয় সমন্বয় সামলান।"],
-  ["assistant-manager", "Assistant Manager", "অ্যাসিস্ট্যান্ট ম্যানেজার", "5–8 years", "৫–৮ বছর",
-    "Coordinate people and projects while taking greater responsibility for strategic sourcing, team coordination and delivery.",
-    "মানুষ ও প্রকল্প সমন্বয় করুন এবং কৌশলগত সোর্সিং, টিম সমন্বয় ও ডেলিভারির বড় দায়িত্ব নিন।"],
-  ["manager-stage", "Manager", "ম্যানেজার", "8–12 years", "৮–১২ বছর",
-    "Lead procurement teams, category strategies, budgets, contracts, negotiations and performance.",
-    "প্রকিউরমেন্ট টিম, ক্যাটাগরি কৌশল, বাজেট, চুক্তি, দর-কষাকষি ও কর্মক্ষমতার নেতৃত্ব দিন।"],
-  ["senior-management", "Senior Management", "সিনিয়র ম্যানেজমেন্ট", "12–16+ years", "১২–১৬+ বছর",
-    "Set procurement direction, strengthen governance and align supply strategy with business goals. Typical roles include Senior Manager, AGM, DGM, GM and Head of Procurement.",
-    "প্রকিউরমেন্টের দিক নির্ধারণ করুন, গভর্ন্যান্স শক্তিশালী করুন এবং সাপ্লাই কৌশলকে ব্যবসায়িক লক্ষ্যের সঙ্গে মেলান। সাধারণ পদ: সিনিয়র ম্যানেজার, এজিএম, ডিজিএম, জিএম ও হেড অব প্রকিউরমেন্ট।"],
-  ["executive-leadership", "Executive Leadership", "নির্বাহী নেতৃত্ব", "15–20+ years", "১৫–২০+ বছর",
-    "Shape enterprise-wide procurement strategy and lead value, resilience and business impact. Typical roles include CPO, VP, Procurement Director and CSCO.",
-    "সমগ্র প্রতিষ্ঠানের প্রকিউরমেন্ট কৌশল গড়ুন এবং মূল্য, স্থিতিস্থাপকতা ও ব্যবসায়িক প্রভাবের নেতৃত্ব দিন। সাধারণ পদ: সিপিও, ভিপি, প্রকিউরমেন্ট ডিরেক্টর ও সিএসসিও।"],
-];

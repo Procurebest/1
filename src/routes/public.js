@@ -13,7 +13,6 @@ import { CALCULATORS, BY_SLUG, tr } from "../../public/js/calc/defs.js";
 import { HttpError } from "../app.js";
 import { infoPage } from "../views/info.js";
 import { skateHome } from "../views/skate.js";
-import { progressionStrip, stagesQuery } from "../views/progression.js";
 import { CAREER_SITEMAP } from "./career.js";
 
 const TYPES = LIB_TYPES;
@@ -82,12 +81,11 @@ function quoteStrip(c, s) {
 
 async function home(c) {
   const s = await c.settings();
-  const [items, posts, levels, reviews, stages] = await Promise.all([
+  const [items, posts, levels, reviews] = await Promise.all([
     all(c.env, "SELECT * FROM items WHERE status='published' ORDER BY sort, id DESC LIMIT 4"),
     all(c.env, "SELECT * FROM posts WHERE section IN ('blog','negotiation','ai') AND status='published' AND (published_at IS NULL OR published_at <= date('now')) ORDER BY published_at DESC LIMIT 3"),
     all(c.env, "SELECT * FROM exam_levels WHERE published=1 ORDER BY sort"),
     all(c.env, "SELECT name, role, rating, body, lang, created_at FROM reviews WHERE status='published' ORDER BY id DESC LIMIT 6"),
-    s.progress_home === "1" ? all(c.env, stagesQuery) : [],
   ]);
   const lang = c.lang;
   const calcs = calcList(s);
@@ -99,7 +97,7 @@ async function home(c) {
     <span class="eyebrow" data-typewriter="${s["tagline_" + lang]}">${s["tagline_" + lang]}</span>
     <h1>${s["hero_title_" + lang]}</h1>
     <p class="lead">${s["hero_subtitle_" + lang]}</p>
-    ${s.progress_home === "1" ? "" : skateHome(c, s)}
+    ${skateHome(c, s)}
     <div class="row">
       <a class="btn btn-primary btn-lg" href="${c.p("/calculators")}">${c.t("home.cta_calculators")}</a>
       <a class="btn btn-secondary btn-lg" href="${c.p("/library")}">${c.t("home.cta_library")}</a>
@@ -107,8 +105,6 @@ async function home(c) {
     ${heroArt(c)}
   </div>
 </section>
-
-${progressionStrip(c, stages, s)}
 
 ${quoteStrip(c, s)}
 
@@ -215,7 +211,7 @@ ${items.length ? html`<section class="section">
   </div>
 </section>
 `;
-  return c.html(await layout(c, { body, pageType: "home", gate: true, head: "", scripts: stages.length > 1 ? ["/js/career/progression.js"] : [] }));
+  return c.html(await layout(c, { body, pageType: "home", gate: true, head: "" }));
 }
 
 function calcCard(c, k) {

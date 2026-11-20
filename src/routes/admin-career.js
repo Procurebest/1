@@ -21,9 +21,6 @@ function entities(c, lists) {
   return {
     levels: { table: "career_levels", title: L("Career levels", "ক্যারিয়ার স্তর"), name: (r) => r.title_en, sub: (r) => `${r.years_en} · ${r.slug}`, order: "sort, id",
       fields: [["slug", "Key (web address)", "কী (ওয়েব ঠিকানা)", "slug"], ["title", "Level name", "স্তরের নাম", "bi"], ["years", "Indicative years", "আনুমানিক বছর", "bi"], ["desc", "Description", "বিবরণ", "biarea"], ["sort", "Display order", "ক্রম", "num"], ["status", "Status", "অবস্থা", "sel", STATUS(c)]] },
-    stages: { table: "career_stages", title: L("Progression stages", "অগ্রগতির ধাপ"), name: (r) => r.title_en, sub: (r) => `${r.years_en} · ${r.slug}`, order: "sort, id",
-      fields: [["slug", "Key", "কী", "slug"], ["title", "Stage name", "ধাপের নাম", "bi"], ["years", "Indicative years", "আনুমানিক বছর", "bi"], ["desc", "Short description (one or two sentences)", "সংক্ষিপ্ত বিবরণ (এক-দুই বাক্য)", "biarea"],
-        ["sort", "Display order", "ক্রম", "num"], ["status", "Status (Published = shown on the Career Home)", "অবস্থা (প্রকাশিত = ক্যারিয়ার হোমে দেখাবে)", "sel", STATUS(c)]] },
     roles: { table: "job_roles", title: L("Job roles (roadmap & library)", "জব রোল (রোডম্যাপ ও লাইব্রেরি)"), name: (r) => r.title_en, sub: (r) => `${r.level_slug} · ${r.track} · /career/job-roles/${r.slug}`, order: "sort, id", view: (r) => "/career/job-roles/" + r.slug,
       fields: [["slug", "Key (web address)", "কী (ওয়েব ঠিকানা)", "slug"], ["title", "Job title", "পদের নাম", "bi"], ["level_slug", "Career level", "ক্যারিয়ার স্তর", "sel", levelOpts],
         ["track", "Career track", "ক্যারিয়ার ট্র্যাক", "sel", Object.entries(TRACKS).map(([k, v]) => [k, c.pick(...v)])], ["exp_min", "Indicative experience from (years)", "আনুমানিক অভিজ্ঞতা থেকে (বছর)", "num"], ["exp_max", "to (years)", "পর্যন্ত (বছর)", "num"],
@@ -74,7 +71,7 @@ function entities(c, lists) {
         ["sort", "Display order", "ক্রম", "num"], ["status", "Status (enable / disable)", "অবস্থা (চালু / বন্ধ)", "sel", [["published", L("Enabled", "চালু")], ["draft", L("Disabled", "বন্ধ")]]]] },
   };
 }
-const ORDER = ["roles", "levels", "stages", "skills", "certifications", "questions", "salaries", "rules", "tools", "industries"];
+const ORDER = ["roles", "levels", "skills", "certifications", "questions", "salaries", "rules", "tools", "industries"];
 async function lists(c) {
   const [levels, skills, roles, industries] = await Promise.all([
     all(c.env, "SELECT slug, title_en, title_bn FROM career_levels ORDER BY sort, id"), all(c.env, "SELECT slug, name_en, name_bn FROM skills ORDER BY sort, id"),
@@ -93,14 +90,11 @@ async function overview(c) {
   const order = homeOrder(s);
   const video = s.skate_video_id ? await getFile(c.env, s.skate_video_id) : null;
   const poster = s.skate_poster_id ? await getFile(c.env, s.skate_poster_id) : null;
-  const secName = { journey: c.L("Career journey", "ক্যারিয়ার যাত্রা"), progression: c.L("Career progression strip", "ক্যারিয়ার অগ্রগতি"), roadmap: c.L("Roadmap preview", "রোডম্যাপ প্রিভিউ"), calculator: c.L("Career Analysis call-to-action", "ক্যারিয়ার অ্যানালাইসিস"), articles: c.L("Popular articles", "জনপ্রিয় আর্টিকেল"), roles: c.L("Popular job roles", "জনপ্রিয় পদ"), certifications: c.L("Certifications", "সার্টিফিকেশন"), tools: c.L("Career tools", "ক্যারিয়ার টুলস"), interview: c.L("Interview preparation", "ইন্টারভিউ প্রস্তুতি"), resources: c.L("Career resources", "ক্যারিয়ার রিসোর্স") };
+  const secName = { journey: c.L("Career journey", "ক্যারিয়ার যাত্রা"), roadmap: c.L("Roadmap preview", "রোডম্যাপ প্রিভিউ"), calculator: c.L("Career Analysis call-to-action", "ক্যারিয়ার অ্যানালাইসিস"), articles: c.L("Popular articles", "জনপ্রিয় আর্টিকেল"), roles: c.L("Popular job roles", "জনপ্রিয় পদ"), certifications: c.L("Certifications", "সার্টিফিকেশন"), tools: c.L("Career tools", "ক্যারিয়ার টুলস"), interview: c.L("Interview preparation", "ইন্টারভিউ প্রস্তুতি"), resources: c.L("Career resources", "ক্যারিয়ার রিসোর্স") };
   const featName = Object.fromEntries(HUB.map(([k, , en, bn]) => [k, c.L(en, bn)]));
   const body = html`${tabs(c, "hub", E)}
-  ${Number(st.roles) && !Number(st.stages) ? html`<div class="panel" style="margin-bottom:20px"><h3>${c.L("Add the career progression stages", "ক্যারিয়ার অগ্রগতির ধাপ যোগ করুন")}</h3>
-    <p class="small muted">${c.L("Seven starter stages for the progression strip on the Career Home. Edit them afterwards under Progression stages.", "ক্যারিয়ার হোমের অগ্রগতি অংশের জন্য সাতটি শুরুর ধাপ। পরে 'অগ্রগতির ধাপ' থেকে এডিট করা যাবে।")}</p>
-    <button class="btn btn-primary" type="button" data-seed-run data-steps="career4">${icon("sparkle", 16)} ${c.L("Add progression stages", "অগ্রগতির ধাপ যোগ করুন")}</button><span class="small muted" data-seed-status style="margin-left:10px"></span></div>` : ""}
   ${!Number(st.roles) ? html`<div class="panel" style="margin-bottom:20px" data-seed><h3>${c.L("Install starter career data", "প্রাথমিক ক্যারিয়ার ডেটা যোগ করুন")}</h3>
-    <p class="small muted">${c.L("Adds 5 career levels, 7 progression stages, 18 job roles with full profiles, 11 competencies, 8 qualifications, career connections, 20 interview questions, salary ESTIMATES for Bangladesh (labelled as estimates), recommendation rules, 11 tools and 2 career articles. Everything can be edited afterwards. Running it twice does not create duplicates.", "৫টি ক্যারিয়ার স্তর, ৭টি অগ্রগতির ধাপ, পূর্ণ প্রোফাইলসহ ১৮টি পদ, ১১টি দক্ষতা, ৮টি যোগ্যতা, ক্যারিয়ার সংযোগ, ২০টি ইন্টারভিউ প্রশ্ন, বাংলাদেশের আনুমানিক বেতন (আনুমানিক হিসেবে চিহ্নিত), সুপারিশের নিয়ম, ১১টি টুল ও ২টি ক্যারিয়ার আর্টিকেল যোগ হবে। পরে সব এডিট করা যাবে। দুবার চালালেও দ্বিগুণ হবে না।")}</p>
+    <p class="small muted">${c.L("Adds 5 career levels, 18 job roles with full profiles, 11 competencies, 8 qualifications, career connections, 20 interview questions, salary ESTIMATES for Bangladesh (labelled as estimates), recommendation rules, 11 tools and 2 career articles. Everything can be edited afterwards. Running it twice does not create duplicates.", "৫টি ক্যারিয়ার স্তর, পূর্ণ প্রোফাইলসহ ১৮টি পদ, ১১টি দক্ষতা, ৮টি যোগ্যতা, ক্যারিয়ার সংযোগ, ২০টি ইন্টারভিউ প্রশ্ন, বাংলাদেশের আনুমানিক বেতন (আনুমানিক হিসেবে চিহ্নিত), সুপারিশের নিয়ম, ১১টি টুল ও ২টি ক্যারিয়ার আর্টিকেল যোগ হবে। পরে সব এডিট করা যাবে। দুবার চালালেও দ্বিগুণ হবে না।")}</p>
     <button class="btn btn-primary" type="button" data-seed-run data-steps="${CAREER_STEPS.join(",")}">${icon("sparkle", 16)} ${c.L("Install starter career data", "প্রাথমিক ক্যারিয়ার ডেটা যোগ করুন")}</button><span class="small muted" data-seed-status style="margin-left:10px"></span></div>` : ""}
   <div class="grid grid-4" style="margin-bottom:20px">${[["roles", st.roles, c.L("Job roles", "পদ")], ["skills", st.skills, c.L("Skills", "দক্ষতা")], ["certifications", st.certs, c.L("Certifications", "সার্টিফিকেশন")], ["questions", st.questions, c.L("Interview questions", "ইন্টারভিউ প্রশ্ন")],
     ["salaries", st.salaries, c.L("Salary rows", "বেতনের সারি")], ["rules", st.rules, c.L("Rules", "নিয়ম")], ["tools", st.tools, c.L("Tools", "টুল")], ["industries", st.industries, c.L("Industries", "খাত")]].map(([k, n, l]) => html`<a class="metric" href="/admin/career/${k}" style="text-decoration:none;color:inherit"><div class="v">${c.d(n || 0)}</div><div class="l">${l}</div></a>`)}</div>
@@ -117,10 +111,6 @@ async function overview(c) {
       ${fld("career_weights", c.L("Skills, experience, qualifications (%)", "দক্ষতা, অভিজ্ঞতা, যোগ্যতা (%)"), s.career_weights, { help: c.L("Three numbers separated by commas, e.g. 60,25,15. Shown to users under 'How it is calculated'.", "কমা দিয়ে আলাদা তিনটি সংখ্যা, যেমন 60,25,15। ব্যবহারকারীরা 'কীভাবে হিসাব হয়' অংশে দেখবেন।") })}</div></div>
     <div class="form-section"><h3>${c.L("Verified external job sources", "যাচাইকৃত বাইরের চাকরির উৎস")}</h3><div class="form-grid" style="margin-top:12px">
       ${fld("career_job_sources", c.L("One per line: Name | https://link | note (English) | note (Bengali)", "প্রতি লাইনে একটি: নাম | https://লিংক | নোট (ইংরেজি) | নোট (বাংলা)"), s.career_job_sources, { rows: 6, full: true })}</div></div>
-    <div class="form-section"><h3>${c.L("Progression strip on the main home page", "মূল হোমপেজে অগ্রগতির স্ট্রিপ")}</h3>
-      <p class="help">${c.L("Shows the stage strip under the hero of the main home page. When it is on, the skateboard animation is hidden on the main home page; it stays on the Career Hub. Edit the stages under Progression stages.", "মূল হোমপেজের হিরো অংশের নিচে অগ্রগতির ধাপের স্ট্রিপ দেখায়। এটি চালু থাকলে মূল হোমপেজে স্কেটবোর্ড অ্যানিমেশন লুকানো হবে; ক্যারিয়ার হাবে থাকবে। ধাপ এডিট করতে 'অগ্রগতির ধাপ' ট্যাব ব্যবহার করুন।")}</p>
-      <div class="form-grid" style="margin-top:12px">
-      ${sel("progress_home", c.L("Show on the main home page", "মূল হোমপেজে দেখান"), s.progress_home, [["1", c.L("Yes", "হ্যাঁ")], ["0", c.L("No", "না")]], { third: true })}</div></div>
     <div class="form-section"><h3>${c.L("Skateboard “career jump” animation", "স্কেটবোর্ড “ক্যারিয়ার জাম্প” অ্যানিমেশন")}</h3>
       <p class="help">${c.L("By default a lightweight drawing in the site's style is shown (the same animation on the home page, above the Career Hub button, and on the Career Hub). The iStock reference video is a paid stock asset: upload the licensed file here only after you have bought the licence — it then replaces the drawing. MP4 or WebM, no sound, ideally under 3 MB.", "স্বাভাবিকভাবে সাইটের স্টাইলে আঁকা একটি হালকা অ্যানিমেশন দেখায় (একই অ্যানিমেশন হোমপেজে ক্যারিয়ার হাব বাটনের ওপরে এবং ক্যারিয়ার হাবে)। iStock-এর রেফারেন্স ভিডিওটি পেইড স্টক অ্যাসেট: লাইসেন্স কেনার পরেই লাইসেন্সকৃত ফাইলটি এখানে আপলোড করুন — তখন সেটি আঁকা অ্যানিমেশনের জায়গা নেবে। MP4 বা WebM, শব্দ ছাড়া, ৩ MB-এর কম হলে ভালো।")}</p>
       <div class="form-grid" style="margin-top:12px">
@@ -136,7 +126,6 @@ async function overviewSave(c) {
   const f = await c.form();
   const v = {};
   for (const k of ["career_title_en", "career_title_bn", "career_lead_en", "career_lead_bn", "career_job_sources", "skate_enabled", "skate_home"]) if (f.has(k)) v[k] = clip(f.get(k), 2000);
-  if (f.has("progress_home")) v.progress_home = f.get("progress_home") === "1" ? "1" : "0";
   const w = String(f.get("career_weights") || "").split(",").map((x) => Number(x.trim()));
   if (w.length !== 3 || w.some((x) => !Number.isFinite(x) || x < 0) || w[0] + w[1] + w[2] <= 0) return c.redirect(errBack("/admin/career", c.L("Weights must be three numbers like 60,25,15.", "ওজন হবে তিনটি সংখ্যা, যেমন 60,25,15।")));
   v.career_weights = w.join(",");
@@ -290,7 +279,7 @@ async function deleteEntity(c) {
 }
 
 export function registerCareerAdmin(r) {
-  const ENT = "(roles|levels|stages|skills|certifications|questions|salaries|rules|tools|industries)";
+  const ENT = "(roles|levels|skills|certifications|questions|salaries|rules|tools|industries)";
   r.get("/admin/career", guard(overview));
   r.post("/admin/career", guard(overviewSave, { form: true }));
   r.get(`/admin/career/:ent${ENT}`, guard(listPage));

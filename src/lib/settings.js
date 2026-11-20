@@ -90,8 +90,6 @@ export const DEFAULTS = {
   skate_enabled: "1",
   skate_home: "1",
   skate_video_id: "",
-  // Progression strip (Career Home section, plus an optional strip on the main home page)
-  progress_home: "0",
   skate_poster_id: "",
   // Moving procurement quotes (one per line)
   quotes_enabled: "1",

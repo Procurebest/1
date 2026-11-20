@@ -10,7 +10,6 @@ import { HttpError } from "../app.js";
 import { careerData, careerOff, homeOrder, TRACKS, CERT_KINDS, Q_KINDS, BASIS } from "../lib/career.js";
 import { parseWeights } from "../../public/js/career/engine.js";
 import { skateHub } from "../views/skate.js";
-import { progressionStrip, stagesQuery } from "../views/progression.js";
 import { postList, postPage, catLabel, itemCard } from "./public.js";
 
 const lines = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean);
@@ -73,12 +72,11 @@ async function careerHome(c) {
   const s = await c.settings();
   const off = careerOff(s);
   const d = await careerData(c, false);
-  const [posts, certs, tools, qn, stages] = await Promise.all([
+  const [posts, certs, tools, qn] = await Promise.all([
     all(c.env, `SELECT slug, title_en, title_bn, summary_en, summary_bn, category, cover_id FROM posts WHERE section='career' AND ${visiblePosts} ORDER BY featured DESC, views DESC, published_at DESC LIMIT 3`),
     all(c.env, "SELECT slug, kind, name_en, name_bn, issuer FROM certifications WHERE status='published' ORDER BY sort, id LIMIT 4"),
     all(c.env, "SELECT * FROM career_tools WHERE status='published' AND grp='tools' ORDER BY sort, id LIMIT 4"),
     one(c.env, "SELECT COUNT(*) AS n FROM career_questions WHERE status='published'"),
-    all(c.env, stagesQuery),
   ]);
   const head = (eyebrow, title, href, label) => html`<div class="row between" style="margin-bottom:28px;align-items:flex-end"><div><span class="eyebrow">${eyebrow}</span><h2 style="margin:0">${title}</h2></div>
     ${href ? html`<a class="link" href="${c.p(href)}">${label} ${icon("arrow-right", 16)}</a>` : ""}</div>`;
@@ -91,7 +89,6 @@ async function careerHome(c) {
         ["calendar", "Plan", "পরিকল্পনা করুন", "Get a personalised roadmap and 90-day plan.", "ব্যক্তিগত রোডম্যাপ ও ৯০ দিনের পরিকল্পনা পান।", "/career/career-analysis"],
         ["award", "Grow", "এগিয়ে যান", "Choose qualifications, prepare for interviews, apply.", "যোগ্যতা বাছুন, ইন্টারভিউর প্রস্তুতি নিন, আবেদন করুন।", "/career/certifications"]].map(([ic, en, bn, den, dbn, href], i) => html`
         <li><a href="${c.p(href)}"><span class="journey-n">${c.d(i + 1)}</span><strong>${c.L(en, bn)}</strong><span class="small muted">${c.L(den, dbn)}</span></a></li>`)}</ol></div></section>`,
-    progression: () => progressionStrip(c, stages, s),
     roadmap: () => off.has("roadmap") || !d.levels.length ? "" : html`<section class="section-sm alt"><div class="wrap">${head(c.L("Interactive Career Roadmap", "ইন্টারঅ্যাকটিভ ক্যারিয়ার রোডম্যাপ"), c.L("From your first job to CPO", "প্রথম চাকরি থেকে সিপিও"), "/career/roadmap", c.L("Explore Career Roadmap", "ক্যারিয়ার রোডম্যাপ দেখুন"))}
       <div class="level-preview">${d.levels.map((l) => html`<a class="lp-col" href="${c.p("/career/roadmap#lv-" + l.slug)}"><span class="lp-years">${pk(c, l, "years")}</span><strong>${pk(c, l, "title")}</strong>
         <span class="small muted">${d.roles.filter((r) => r.level_slug === l.slug).slice(0, 3).map((r) => c.pick(r.title_en, r.title_bn)).join(" · ")}</span></a>`)}</div></div></section>`,
@@ -129,7 +126,7 @@ async function careerHome(c) {
     ${skateHub(c, s)}
   </div></section>
   ${d.roles.length ? homeOrder(s).filter((k) => !k.startsWith("-")).map((k) => S[k]()) : html`<section class="section-sm"><div class="wrap">${preparing(c)}</div></section>`}`;
-  return page(c, { key: "home", body, scripts: stages.length > 1 ? ["/js/career/progression.js"] : [] });
+  return page(c, { key: "home", body });
 }
 
 // ------------------------------------------------------------------ roadmap tree
