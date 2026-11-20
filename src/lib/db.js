@@ -3,7 +3,7 @@
 // migrations by hand. Every statement is idempotent (IF NOT EXISTS / INSERT OR IGNORE).
 import { randomToken, nowIso } from "./util.js";
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
@@ -154,6 +154,10 @@ const SCHEMA = [
      id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, grp TEXT NOT NULL DEFAULT 'tools', kind TEXT NOT NULL DEFAULT 'link', icon TEXT NOT NULL DEFAULT 'file',
      sort INTEGER NOT NULL DEFAULT 100, status TEXT NOT NULL DEFAULT 'published', name_en TEXT NOT NULL DEFAULT '', name_bn TEXT NOT NULL DEFAULT '',
      desc_en TEXT NOT NULL DEFAULT '', desc_bn TEXT NOT NULL DEFAULT '', items_en TEXT NOT NULL DEFAULT '', items_bn TEXT NOT NULL DEFAULT '', url TEXT NOT NULL DEFAULT '')`,
+  `CREATE TABLE IF NOT EXISTS career_stages (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, sort INTEGER NOT NULL DEFAULT 100, status TEXT NOT NULL DEFAULT 'published',
+     title_en TEXT NOT NULL DEFAULT '', title_bn TEXT NOT NULL DEFAULT '', years_en TEXT NOT NULL DEFAULT '', years_bn TEXT NOT NULL DEFAULT '',
+     desc_en TEXT NOT NULL DEFAULT '', desc_bn TEXT NOT NULL DEFAULT '')`,
 ];
 
 // Columns added after the first release. Added only when missing, so upgrades are automatic.
