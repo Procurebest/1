@@ -2,16 +2,6 @@
 (function () {
   "use strict";
 
-  // ------------------------------------------------------------ licensed skateboard video (home page and Career Hub)
-  // Loaded only when it scrolls into view, muted; not played for visitors who prefer reduced motion.
-  const calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  document.querySelectorAll("[data-skate-video]").forEach((v) => {
-    if (calm) { v.removeAttribute("loop"); return; }
-    const start = () => { if (!v.src) v.src = v.dataset.src; v.play().catch(() => {}); };
-    if ("IntersectionObserver" in window) new IntersectionObserver((es) => es.forEach((e) => (e.isIntersecting ? start() : v.pause())), { rootMargin: "100px" }).observe(v);
-    else start();
-  });
-
   // ------------------------------------------------------------ welcome pop-up
   const pop = document.querySelector("[data-welcome]");
   if (pop) {

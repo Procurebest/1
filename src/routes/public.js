@@ -12,7 +12,6 @@ import { whatsapp } from "../lib/settings.js";
 import { CALCULATORS, BY_SLUG, tr } from "../../public/js/calc/defs.js";
 import { HttpError } from "../app.js";
 import { infoPage } from "../views/info.js";
-import { skateHome } from "../views/skate.js";
 import { CAREER_SITEMAP } from "./career.js";
 
 const TYPES = LIB_TYPES;
@@ -97,10 +96,10 @@ async function home(c) {
     <span class="eyebrow" data-typewriter="${s["tagline_" + lang]}">${s["tagline_" + lang]}</span>
     <h1>${s["hero_title_" + lang]}</h1>
     <p class="lead">${s["hero_subtitle_" + lang]}</p>
-    ${skateHome(c, s)}
     <div class="row">
       <a class="btn btn-primary btn-lg" href="${c.p("/calculators")}">${c.t("home.cta_calculators")}</a>
       <a class="btn btn-secondary btn-lg" href="${c.p("/library")}">${c.t("home.cta_library")}</a>
+      <a class="btn btn-secondary btn-lg" href="${c.p("/career")}">${c.L("Career Goal", "ক্যারিয়ার গোল")}</a>
     </div>
     ${heroArt(c)}
   </div>

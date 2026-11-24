@@ -123,7 +123,7 @@ async function careerHome(c) {
     <div class="row">${[["roadmap", "/career/roadmap", "Explore Career Roadmap", "ক্যারিয়ার রোডম্যাপ দেখুন", "btn-primary"], ["career-analysis", "/career/career-analysis", "Analyze My Career", "আমার ক্যারিয়ার বিশ্লেষণ করুন", "btn-secondary"],
       ["job-roles", "/career/job-roles", "Explore Job Roles", "জব রোল দেখুন", "btn-secondary"], ["certifications", "/career/certifications", "Explore Certifications", "সার্টিফিকেশন দেখুন", "btn-secondary"]]
       .filter(([k]) => !off.has(k)).map(([, href, en, bn, cls]) => html`<a class="btn ${cls} btn-lg" href="${c.p(href)}">${c.L(en, bn)}</a>`)}</div>
-    ${skateHub(c, s)}
+    ${skateHub(c, s, d.levels)}
   </div></section>
   ${d.roles.length ? homeOrder(s).filter((k) => !k.startsWith("-")).map((k) => S[k]()) : html`<section class="section-sm"><div class="wrap">${preparing(c)}</div></section>`}`;
   return page(c, { key: "home", body });

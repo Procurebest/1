@@ -101,11 +101,6 @@ hr { border: 0; border-top: 1px solid var(--line-2); margin: 32px 0; }
   display: inline-flex; align-items: center; gap: 5px; padding: 8px 9px; border-radius: 9px; }
 .nav-links > li > a:hover { background: rgba(0,0,0,.05); }
 .nav-links .caret { opacity: .55; transition: transform .2s; }
-/* Career: first menu item, bold, with a gentle attention-grabbing jump (paused on hover, off for reduced motion). */
-.nav-links > li.nav-career > a { font-weight: 700; color: #000; opacity: 1; animation: career-jump 3s ease-in-out infinite; }
-.nav-links > li.nav-career > a:hover { animation-play-state: paused; }
-@keyframes career-jump { 0%, 58%, 100% { transform: translateY(0); } 64% { transform: translateY(-6px); } 71% { transform: translateY(0); } 77% { transform: translateY(-3px); } 83% { transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .nav-links > li.nav-career > a { animation: none; } }
 .nav-links > li:hover .caret, .nav-links > li:focus-within .caret { transform: rotate(180deg); }
 html[lang="bn"] .nav-links > li > a { font-size: 15px; }
 .nav-links .sub { position: absolute; top: calc(100% - 6px); left: 50%; transform: translate(-50%, 6px); min-width: 230px; padding-top: 6px;

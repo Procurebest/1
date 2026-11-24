@@ -127,24 +127,15 @@
 .skate-scene .sk-strong { fill: #000; }
 .skate-scene .sk-board { transform-box: fill-box; transform-origin: 50% 50%; }
 .skate-scene .sk-rider { transform-box: fill-box; transform-origin: 50% 100%; }
-/* Home page career block: animation, bold question, light-blue button. No frame: it sits on the page itself. */
-.skate-home-link { display: block; max-width: 1000px; margin: 12px auto 36px; text-decoration: none; color: var(--ink); }
-.skate-home { margin-top: 0; }
-.skate-hub { margin-top: 22px; }
-.skate-q { display: block; margin-top: 16px; font-size: clamp(23px, 2.7vw, 31px); font-weight: 800; line-height: 1.2; letter-spacing: -.015em; animation: q-tint 12s ease-in-out infinite; }
-html[lang="bn"] .skate-q { letter-spacing: 0; line-height: 1.4; }
-/* The question drifts slowly through soft, muted tones (ink, green, blue, sand, violet) that stay readable on the light page. */
-@keyframes q-tint { 0%, 12%, 100% { color: #1d1d1f; } 25%, 32% { color: #2f6b4a; } 45%, 52% { color: #2f5f8f; } 65%, 72% { color: #7a6230; } 85%, 92% { color: #5b4a8a; } }
-.skate-cta { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 13px 28px; border-radius: 999px; background: #dcebfb; border: 1px solid #bcd6f3; color: #0b2f57; font-size: 17px; font-weight: 700; line-height: 1.2; animation: cta-pulse 2.4s ease-out infinite; transition: transform .2s, background .2s; }
-.skate-home-link:hover .skate-cta { transform: translateY(-2px); background: #cde2f9; }
-@keyframes cta-pulse { 0% { box-shadow: 0 0 0 0 rgba(79,143,214,.4); } 70%, 100% { box-shadow: 0 0 0 14px rgba(79,143,214,0); } }
-.skate-home-link:focus-visible { outline: 2px solid #000; outline-offset: 6px; border-radius: 12px; }
-/* Licensed video: no box around it; "multiply" lets its white background melt into the page colour. */
-.skate-video-wrap { max-width: 720px; margin: 0 auto; }
-.skate-home-link .skate-video-wrap { max-width: 520px; }
-.skate-video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; mix-blend-mode: multiply; }
+.skate-home-link { display: block; max-width: 1000px; margin: 8px auto 0; text-decoration: none; color: var(--ink); }
+.skate-home-link > span { display: inline-block; margin-top: 4px; font-size: 14px; font-weight: 600; border-bottom: 1px solid currentColor; }
+.skate-home-link:hover > span { color: var(--muted); }
+.skate-home { margin-top: 18px; }
+.skate-video-wrap { max-width: 720px; margin: 28px auto 0; border-radius: 18px; overflow: hidden; background: var(--surface); }
+.skate-home-video { max-width: 520px; }
+.skate-video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
 @media (max-width: 640px) { .skate-scene .sk-label { font-size: 18px; } .career-hero { padding-top: 32px; } }
-@media (prefers-reduced-motion: reduce) { .skate-scene .sk, .skate-scene .sk-board, .skate-scene .sk-rider, .skate-cta, .skate-q { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .skate-scene .sk, .skate-scene .sk-board, .skate-scene .sk-rider { animation: none !important; } }
 
 @media print {
   .hub-nav, .skate-scene, .skate-home-link, [data-wizard], [data-assess-form], .wiz-actions, .nav, .footer, .mobile-menu { display: none !important; }
